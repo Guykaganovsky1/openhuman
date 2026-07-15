@@ -3323,6 +3323,8 @@ const messages: TranslationMap = {
   'mic.lowConfidenceResult': "Impossible de comprendre l'audio clairement: réessaie",
   'mic.failedToStopRecording': "Échec de l'arrêt de l'enregistrement : {message}",
   'mic.transcriptionFailed': 'Échec de la transcription : {message}',
+  'mic.voiceNotCompiled':
+    "La transcription vocale n'est pas incluse dans cette version de l'application. Mettez à jour OpenHuman pour l'activer.",
   'reflections.kind.retrospective': 'Rétrospective',
   'reflections.kind.derivedFact': 'Fait dérivé',
   'reflections.kind.moodInsight': 'Insight émotionnel',
@@ -4214,6 +4216,8 @@ const messages: TranslationMap = {
   'flows.copilot.removed': '{count} supprimés',
   'flows.copilot.noChanges': 'Cette proposition ne modifie aucun nœud.',
   'flows.copilot.accept': 'Appliquer au brouillon',
+  'flows.copilot.acceptAndSave': 'Accepter et enregistrer',
+  'flows.copilot.saving': 'Enregistrement…',
   'flows.copilot.reject': 'Ignorer',
   'flows.copilot.previewHint': 'Examen d’un brouillon proposé: rien n’est encore enregistré.',
   'flows.copilot.repairDisplay': 'Une exécution a échoué ; examinez-la et proposez une correction.',

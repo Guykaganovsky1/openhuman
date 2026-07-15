@@ -3201,6 +3201,8 @@ const messages: TranslationMap = {
   'mic.lowConfidenceResult': '오디오를 명확하게 이해할 수 없습니다: 다시 시도해 주세요',
   'mic.failedToStopRecording': '녹음을 중지하지 못했습니다: {message}',
   'mic.transcriptionFailed': '전사에 실패했습니다: {message}',
+  'mic.voiceNotCompiled':
+    '이 버전의 앱에는 음성 받아쓰기가 포함되어 있지 않습니다. OpenHuman을 업데이트하면 사용할 수 있습니다.',
   'reflections.kind.retrospective': '회고',
   'reflections.kind.derivedFact': '파생된 사실',
   'reflections.kind.moodInsight': '기분 인사이트',
@@ -4067,6 +4069,8 @@ const messages: TranslationMap = {
   'flows.copilot.removed': '{count}개 제거',
   'flows.copilot.noChanges': '이 제안은 노드를 변경하지 않습니다.',
   'flows.copilot.accept': '초안에 적용',
+  'flows.copilot.acceptAndSave': '수락 및 저장',
+  'flows.copilot.saving': '저장 중…',
   'flows.copilot.reject': '버리기',
   'flows.copilot.previewHint': '제안된 초안을 검토 중입니다: 아직 저장되지 않았습니다.',
   'flows.copilot.repairDisplay': '실행이 실패했습니다. 확인하고 수정을 제안하세요.',

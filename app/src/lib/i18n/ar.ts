@@ -3163,6 +3163,8 @@ const messages: TranslationMap = {
   'mic.lowConfidenceResult': 'تعذّر فهم الصوت بوضوح: يرجى المحاولة مرة أخرى',
   'mic.failedToStopRecording': 'فشل إيقاف التسجيل: {message}',
   'mic.transcriptionFailed': 'فشل النسخ: {message}',
+  'mic.voiceNotCompiled':
+    'خاصية تحويل الصوت إلى نص غير متوفرة في هذا الإصدار من التطبيق. حدّث OpenHuman لتفعيلها.',
   'reflections.kind.retrospective': 'مراجعة',
   'reflections.kind.derivedFact': 'حقيقة مستنتجة',
   'reflections.kind.moodInsight': 'رؤية المزاج',
@@ -4014,6 +4016,8 @@ const messages: TranslationMap = {
   'flows.copilot.removed': 'أُزيل {count}',
   'flows.copilot.noChanges': 'هذا الاقتراح لا يغيّر أي عقدة.',
   'flows.copilot.accept': 'تطبيق على المسودة',
+  'flows.copilot.acceptAndSave': 'قبول وحفظ',
+  'flows.copilot.saving': 'جارٍ الحفظ…',
   'flows.copilot.reject': 'تجاهل',
   'flows.copilot.previewHint': 'جارٍ مراجعة مسودة مقترحة: لم يُحفظ شيء بعد.',
   'flows.copilot.repairDisplay': 'فشل تشغيل؛ راجعه واقترح إصلاحًا.',

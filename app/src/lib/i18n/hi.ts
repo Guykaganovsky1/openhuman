@@ -3236,6 +3236,8 @@ const messages: TranslationMap = {
   'mic.lowConfidenceResult': 'ऑडियो स्पष्ट रूप से समझ नहीं आया: कृपया पुनः प्रयास करें',
   'mic.failedToStopRecording': 'रिकॉर्डिंग रोकने में दिक्कत: {message}',
   'mic.transcriptionFailed': 'ट्रांसक्रिप्शन विफल: {message}',
+  'mic.voiceNotCompiled':
+    'इस ऐप संस्करण में वॉइस ट्रांसक्रिप्शन शामिल नहीं है। इसे चालू करने के लिए OpenHuman को अपडेट करें।',
   'reflections.kind.retrospective': 'रेट्रोस्पेक्टिव',
   'reflections.kind.derivedFact': 'डिराइव्ड फैक्ट',
   'reflections.kind.moodInsight': 'मूड इनसाइट',
@@ -4112,6 +4114,8 @@ const messages: TranslationMap = {
   'flows.copilot.removed': '{count} हटाए गए',
   'flows.copilot.noChanges': 'यह प्रस्ताव किसी नोड को नहीं बदलता।',
   'flows.copilot.accept': 'ड्राफ़्ट पर लागू करें',
+  'flows.copilot.acceptAndSave': 'स्वीकार करें और सहेजें',
+  'flows.copilot.saving': 'सहेजा जा रहा है…',
   'flows.copilot.reject': 'रद्द करें',
   'flows.copilot.previewHint':
     'एक प्रस्तावित ड्राफ़्ट की समीक्षा हो रही है: अभी कुछ सहेजा नहीं गया।',

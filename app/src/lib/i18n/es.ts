@@ -3299,6 +3299,8 @@ const messages: TranslationMap = {
   'mic.lowConfidenceResult': 'No se pudo entender el audio con claridad: intenta de nuevo',
   'mic.failedToStopRecording': 'No se pudo detener la grabación: {message}',
   'mic.transcriptionFailed': 'Transcripción fallida: {message}',
+  'mic.voiceNotCompiled':
+    'La transcripción de voz no está incluida en esta versión de la aplicación. Actualiza OpenHuman para activarla.',
   'reflections.kind.retrospective': 'Retrospectiva',
   'reflections.kind.derivedFact': 'Hecho derivado',
   'reflections.kind.moodInsight': 'Insight de ánimo',
@@ -4185,6 +4187,8 @@ const messages: TranslationMap = {
   'flows.copilot.removed': '{count} eliminados',
   'flows.copilot.noChanges': 'Esta propuesta no cambia ningún nodo.',
   'flows.copilot.accept': 'Aplicar al borrador',
+  'flows.copilot.acceptAndSave': 'Aceptar y guardar',
+  'flows.copilot.saving': 'Guardando…',
   'flows.copilot.reject': 'Descartar',
   'flows.copilot.previewHint': 'Revisando un borrador propuesto: aún no se ha guardado nada.',
   'flows.copilot.repairDisplay': 'Falló una ejecución; revísala y propón una solución.',

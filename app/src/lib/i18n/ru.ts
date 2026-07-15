@@ -3264,6 +3264,8 @@ const messages: TranslationMap = {
   'mic.lowConfidenceResult': 'Не удалось чётко распознать аудио: попробуйте ещё раз',
   'mic.failedToStopRecording': 'Не удалось остановить запись: {message}',
   'mic.transcriptionFailed': 'Ошибка транскрипции: {message}',
+  'mic.voiceNotCompiled':
+    'Расшифровка речи не включена в эту версию приложения. Обновите OpenHuman, чтобы включить её.',
   'reflections.kind.retrospective': 'Ретроспектива',
   'reflections.kind.derivedFact': 'Выведенный факт',
   'reflections.kind.moodInsight': 'Инсайт о настроении',
@@ -4111,7 +4113,7 @@ const messages: TranslationMap = {
   'flows.promptBar.submit': 'Создать',
   'flows.promptBar.startBuilding': 'Начать создание',
   'flows.promptBar.disclaimer':
-    'Копайлот — это ИИ, и он может ошибаться. Пожалуйста, проверяйте ответы.',
+    'Копайлот работает на основе ИИ и может ошибаться. Пожалуйста, проверяйте ответы.',
   'flows.promptBar.thinking': 'Создание…',
   'flows.promptBar.heroTitle': 'Опишите рабочий процесс',
   'flows.promptBar.heroSubtitle':
@@ -4152,6 +4154,8 @@ const messages: TranslationMap = {
   'flows.copilot.removed': 'удалено: {count}',
   'flows.copilot.noChanges': 'Это предложение не меняет ни одного узла.',
   'flows.copilot.accept': 'Применить к черновику',
+  'flows.copilot.acceptAndSave': 'Принять и сохранить',
+  'flows.copilot.saving': 'Сохранение…',
   'flows.copilot.reject': 'Отклонить',
   'flows.copilot.previewHint': 'Просмотр предложенного черновика: пока ничего не сохранено.',
   'flows.copilot.repairDisplay': 'Запуск завершился ошибкой; изучите его и предложите исправление.',

@@ -3238,6 +3238,8 @@ const messages: TranslationMap = {
   'mic.lowConfidenceResult': 'অডিও স্পষ্টভাবে বোঝা যায়নি: আবার চেষ্টা করুন',
   'mic.failedToStopRecording': 'রেকর্ডিং বন্ধ করতে ব্যর্থ: {message}',
   'mic.transcriptionFailed': 'ট্রান্সক্রিপশন ব্যর্থ: {message}',
+  'mic.voiceNotCompiled':
+    'অ্যাপের এই সংস্করণে ভয়েস ট্রান্সক্রিপশন অন্তর্ভুক্ত নেই। এটি চালু করতে OpenHuman আপডেট করুন।',
   'reflections.kind.retrospective': 'পূর্বদর্শন',
   'reflections.kind.derivedFact': 'ডেরাইভড ফ্যাক্ট',
   'reflections.kind.moodInsight': 'মুড ইনসাইট',
@@ -4114,6 +4116,8 @@ const messages: TranslationMap = {
   'flows.copilot.removed': '{count}টি সরানো হয়েছে',
   'flows.copilot.noChanges': 'এই প্রস্তাব কোনো নোড পরিবর্তন করে না।',
   'flows.copilot.accept': 'খসড়ায় প্রয়োগ করুন',
+  'flows.copilot.acceptAndSave': 'গ্রহণ ও সংরক্ষণ করুন',
+  'flows.copilot.saving': 'সংরক্ষণ করা হচ্ছে…',
   'flows.copilot.reject': 'বাতিল করুন',
   'flows.copilot.previewHint':
     'একটি প্রস্তাবিত খসড়া পর্যালোচনা হচ্ছে: এখনও কিছু সংরক্ষণ করা হয়নি।',

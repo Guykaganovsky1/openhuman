@@ -3248,6 +3248,8 @@ const messages: TranslationMap = {
   'mic.lowConfidenceResult': 'Tidak dapat memahami audio dengan jelas: silakan coba lagi',
   'mic.failedToStopRecording': 'Gagal menghentikan perekaman: {message}',
   'mic.transcriptionFailed': 'Transkripsi gagal: {message}',
+  'mic.voiceNotCompiled':
+    'Transkripsi suara tidak tersedia di versi aplikasi ini. Perbarui OpenHuman untuk mengaktifkannya.',
   'reflections.kind.retrospective': 'Retrospektif',
   'reflections.kind.derivedFact': 'Fakta Turunan',
   'reflections.kind.moodInsight': 'Wawasan Suasana Hati',
@@ -4129,6 +4131,8 @@ const messages: TranslationMap = {
   'flows.copilot.removed': '{count} dihapus',
   'flows.copilot.noChanges': 'Usulan ini tidak mengubah simpul apa pun.',
   'flows.copilot.accept': 'Terapkan ke draf',
+  'flows.copilot.acceptAndSave': 'Terima & simpan',
+  'flows.copilot.saving': 'Menyimpan…',
   'flows.copilot.reject': 'Buang',
   'flows.copilot.previewHint': 'Meninjau draf yang diusulkan: belum ada yang disimpan.',
   'flows.copilot.repairDisplay': 'Sebuah eksekusi gagal; periksa dan usulkan perbaikan.',
