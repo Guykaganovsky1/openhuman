@@ -669,12 +669,32 @@ pub(crate) fn is_transient_unavailability_text(lower: &str) -> bool {
 ///
 /// These errors are raised by [`crate::openhuman::inference::provider`] before
 /// any request leaves the machine, and every one of them is already phrased as
-/// an instruction to the user. The `[claude-code]` prefix is the marker the
-/// provider stamps on all four of its `CliStatus` failures (not installed,
-/// outdated, unusable, spawn failed).
+/// an instruction to the user.
+///
+/// The marker is the exact prefix the provider stamps on its three `CliStatus`
+/// failures (not installed, outdated, unusable) **and** on a failed spawn at
+/// turn time. That last one belongs in the set: the CLI can pass the version
+/// probe at provider construction and still be gone — deleted, or stripped of
+/// its execute bit — by the time a turn spawns it, which is the same "fix your
+/// install" problem arriving later, not a provider outage.
 fn local_cli_provider_setup_detail(err: &str) -> Option<String> {
     const MARKER: &str = "[claude-code] `claude` CLI";
-    let start = err.find(MARKER)?;
-    let detail = err[start..].trim();
+    /// The one wrapper the provider puts in front of its own errors
+    /// (`ClaudeCodeProvider::map_model_error`).
+    const WRAPPER: &str = "claude-code model call failed: ";
+
+    // Anchored, not a substring search. `err.find(MARKER)` would classify any
+    // error that merely *quotes* the marker — a model echoing it back, a tool
+    // result carrying it — as a local setup failure, which is the wrong advice
+    // and non-retryable to boot. The marker is only meaningful where the
+    // provider actually put it: at the front, or right behind its own wrapper.
+    let rest = err.trim();
+    let detail = rest
+        .strip_prefix(WRAPPER)
+        .map(str::trim_start)
+        .unwrap_or(rest);
+    if !detail.starts_with(MARKER) {
+        return None;
+    }
     (!detail.is_empty()).then(|| detail.to_string())
 }
