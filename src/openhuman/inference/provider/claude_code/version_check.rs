@@ -116,36 +116,51 @@ fn login_shell_lookup() -> Option<PathBuf> {
 /// the bound exists. Reading `SHELL` inside would have forced an env-mutating
 /// test that races every other test in the binary.
 fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
-    let shell = shell.to_string();
+    // The child is spawned HERE, on the calling thread, and never moved into
+    // the reader thread — that is the whole point. `Command::output()` would
+    // give the handle away, leaving nothing to kill when the budget expires, so
+    // a shell that blocks in an rc file would survive as an orphan process for
+    // the life of the app. Only the stdout pipe crosses the thread boundary;
+    // killing the child closes it, which ends the reader on its own.
+    let mut child = Command::new(shell)
+        .args(["-lc", "command -v claude"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|err| {
+            log::debug!("[claude-code][version] login shell probe failed err={err}");
+        })
+        .ok()?;
+
+    let mut pipe = child.stdout.take()?;
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let output = Command::new(&shell)
-            .args(["-lc", "command -v claude"])
-            .output();
-        let _ = tx.send(output);
+        use std::io::Read;
+        let mut out = String::new();
+        let _ = pipe.read_to_string(&mut out);
+        let _ = tx.send(out);
     });
 
-    let output = match rx.recv_timeout(budget) {
-        Ok(Ok(output)) => output,
-        Ok(Err(err)) => {
-            log::debug!("[claude-code][version] login shell probe failed err={err}");
-            return None;
-        }
+    let stdout = match rx.recv_timeout(budget) {
+        Ok(out) => out,
         Err(_) => {
-            // The worker thread is left to finish on its own; it holds nothing
-            // this process needs, and killing a shell mid-rc buys nothing.
             log::warn!(
-                "[claude-code][version] login shell probe timed out after {}s;                  a slow or blocking shell profile can cause this",
-                LOGIN_SHELL_PROBE_TIMEOUT.as_secs()
+                "[claude-code][version] login shell probe timed out after {}s; \
+                 a slow or blocking shell profile can cause this",
+                budget.as_secs()
             );
+            let _ = child.kill();
+            let _ = child.wait();
             return None;
         }
     };
 
-    if !output.status.success() {
-        return None;
+    match child.wait() {
+        Ok(status) if status.success() => {}
+        _ => return None,
     }
-    let path = PathBuf::from(String::from_utf8_lossy(&output.stdout).trim());
+    let path = PathBuf::from(stdout.trim());
     path.is_file().then(|| {
         log::debug!(
             "[claude-code][version] resolved via login shell path={}",

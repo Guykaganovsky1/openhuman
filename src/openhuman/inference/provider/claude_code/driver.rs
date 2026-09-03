@@ -59,6 +59,41 @@ fn spawn_error(
     }
 }
 
+/// The setup-marker detail when the `claude` binary itself is the reason a turn
+/// could not run, or `None` when the binary looks fine.
+///
+/// A non-zero exit normally means the CLI ran and failed, which is a turn
+/// problem, not an install problem. Under the macOS Seatbelt jail it can also
+/// mean the opposite: the spawned program is `/usr/bin/sandbox-exec`, which
+/// starts perfectly well and *then* exits non-zero because the binary it was
+/// asked to wrap is gone or lost its execute bit. `spawn_error` never sees
+/// that, so without this check a missing CLI reaches the user as a retryable
+/// generic error telling them to report it on Discord.
+fn cli_unusable_detail(bin: &Path) -> Option<String> {
+    let meta = match std::fs::metadata(bin) {
+        Ok(meta) => meta,
+        Err(_) => {
+            return Some(format!(
+                "[claude-code] `claude` CLI at {} is no longer present",
+                bin.display()
+            ))
+        }
+    };
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if meta.permissions().mode() & 0o111 == 0 {
+            return Some(format!(
+                "[claude-code] `claude` CLI at {} is not executable",
+                bin.display()
+            ));
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = meta;
+    None
+}
+
 fn parse_turn_timeout(raw: Option<&str>) -> Duration {
     let secs = raw
         .and_then(|raw| raw.trim().parse::<u64>().ok())
@@ -424,6 +459,7 @@ pub async fn run_turn(ctx: TurnContext<'_>) -> anyhow::Result<ChatResponse> {
     #[cfg(not(target_os = "macos"))]
     let (program, final_args): (PathBuf, Vec<String>) = (ctx.bin_path.clone(), args.clone());
 
+    let bin_path = ctx.bin_path.clone();
     let mut cmd = Command::new(&program);
     cmd.args(&final_args)
         .current_dir(&ctx.project_dir)
@@ -538,6 +574,9 @@ pub async fn run_turn(ctx: TurnContext<'_>) -> anyhow::Result<ChatResponse> {
     let stderr_text = stderr_task.await.unwrap_or_default();
 
     if !status.success() {
+        if let Some(detail) = cli_unusable_detail(&bin_path) {
+            anyhow::bail!("{detail} (exit {:?})", status.code());
+        }
         anyhow::bail!(
             "[claude-code][driver] exit {:?} stderr={}",
             status.code(),

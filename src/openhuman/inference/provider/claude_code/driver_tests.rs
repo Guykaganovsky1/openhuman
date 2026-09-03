@@ -237,3 +237,49 @@ fn only_permanent_spawn_failures_claim_the_setup_marker() {
         );
     }
 }
+
+/// Under the Seatbelt jail the spawned program is `/usr/bin/sandbox-exec`, not
+/// the CLI, so a missing or non-executable `claude` starts fine and fails on
+/// exit instead. `spawn_error` never sees that path, and without this check the
+/// user is told to report a broken install on Discord.
+#[test]
+fn a_missing_cli_is_a_setup_failure_even_when_the_spawn_itself_succeeded() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let absent = dir.path().join("claude");
+
+    let detail = super::cli_unusable_detail(&absent).expect("an absent binary is a setup failure");
+    assert!(
+        detail.starts_with("[claude-code] `claude` CLI"),
+        "detail must carry the setup marker: {detail}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_cli_that_lost_its_execute_bit_is_a_setup_failure() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let bin = dir.path().join("claude");
+    std::fs::write(&bin, "#!/bin/sh\n").expect("write bin");
+    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o644)).expect("chmod");
+
+    let detail =
+        super::cli_unusable_detail(&bin).expect("a non-executable binary is a setup failure");
+    assert!(detail.contains("not executable"), "{detail}");
+}
+
+/// The inverse, and the one that keeps this from swallowing real turn failures:
+/// a healthy binary that exits non-zero is a turn problem, not an install one.
+#[cfg(unix)]
+#[test]
+fn a_healthy_cli_is_not_reported_as_a_setup_failure() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let bin = dir.path().join("claude");
+    std::fs::write(&bin, "#!/bin/sh\nexit 1\n").expect("write bin");
+    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+
+    assert_eq!(super::cli_unusable_detail(&bin), None);
+}

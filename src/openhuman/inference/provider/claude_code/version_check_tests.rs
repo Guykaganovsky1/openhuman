@@ -84,3 +84,65 @@ fn a_blocking_login_shell_is_abandoned_rather_than_waited_on() {
         "probe waited {elapsed:?}; the budget was not honoured"
     );
 }
+
+/// The timeout must reap the shell, not merely stop waiting for it.
+///
+/// The reason the child is spawned on the calling thread rather than handed to
+/// `Command::output()` is that a probe which only abandons its worker leaves
+/// the shell running for the life of the app. The script records its own pid
+/// before blocking, so this asserts the process is actually gone afterwards
+/// rather than asserting the shape of the code.
+#[cfg(unix)]
+#[test]
+fn a_timed_out_login_shell_is_killed_not_merely_abandoned() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let pid_file = dir.path().join("pid");
+    let shell = dir.path().join("blocking-shell");
+    std::fs::write(
+        &shell,
+        format!("#!/bin/sh\necho $$ > {}\nsleep 30\n", pid_file.display()),
+    )
+    .expect("write shell");
+    std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o755)).expect("chmod shell");
+
+    // The probe runs on its own thread so the test can wait for the shell to
+    // record its pid BEFORE the budget expires. Reading the file afterwards
+    // would be a race: a shell killed before it got to `echo` never writes one,
+    // and the test would fail for a reason that is not the defect.
+    let shell_path = shell.to_str().expect("utf8 path").to_string();
+    let probe = std::thread::spawn(move || {
+        super::login_shell_lookup_with(&shell_path, Duration::from_secs(2))
+    });
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let pid = loop {
+        if let Ok(raw) = std::fs::read_to_string(&pid_file) {
+            if let Ok(pid) = raw.trim().parse::<i32>() {
+                break pid;
+            }
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the shell never recorded its pid"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    };
+
+    assert_eq!(
+        probe.join().expect("probe thread"),
+        None,
+        "a blocking shell resolves nothing"
+    );
+
+    // `kill -0` probes for existence without signalling. A reaped child is
+    // gone; a leaked one answers.
+    let alive = std::process::Command::new("kill")
+        .args(["-0", &pid.to_string()])
+        .stderr(std::process::Stdio::null())
+        .status()
+        .expect("run kill -0")
+        .success();
+    assert!(!alive, "shell pid {pid} survived the timeout");
+}
