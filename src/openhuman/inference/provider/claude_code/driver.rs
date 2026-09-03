@@ -4,7 +4,7 @@
 //! The driver does *not* own concurrency limits; the `ClaudeCodeProvider`
 //! holds a `Semaphore` and acquires a permit before calling this.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,8 +26,41 @@ const DEFAULT_TURN_TIMEOUT_SECS: u64 = 900;
 /// full access lets it run its own tools: the child was killed mid-work and the
 /// turn surfaced as a provider timeout rather than a slow answer.
 fn turn_timeout() -> Duration {
-    let secs = std::env::var("OPENHUMAN_CLAUDE_CODE_TURN_TIMEOUT_SECS")
-        .ok()
+    let raw = std::env::var("OPENHUMAN_CLAUDE_CODE_TURN_TIMEOUT_SECS").ok();
+    parse_turn_timeout(raw.as_deref())
+}
+
+/// Resolve the turn budget from the raw env value.
+///
+/// Split out from [`turn_timeout`] so the parse rules are testable without
+/// mutating the process environment — an env-mutating test races every other
+/// test in the binary. A zero is rejected rather than honoured: it would kill
+/// every child the instant it started, which reads as a broken CLI rather than
+/// as the misconfiguration it is.
+/// Build the error for a failed `claude` spawn.
+///
+/// Only a failure that means "this binary is not usable" carries the
+/// `[claude-code] `claude` CLI` marker, because that marker classifies as a
+/// NON-RETRYABLE `provider_setup` problem downstream. A transient failure —
+/// `ETXTBSY` while the binary is being rewritten, `EAGAIN` under fork pressure
+/// — is not a broken install: claiming it is would both misdirect the user and
+/// suppress the retry that would have worked.
+fn spawn_error(
+    kind: std::io::ErrorKind,
+    program: &Path,
+    detail: &dyn std::fmt::Display,
+) -> anyhow::Error {
+    match kind {
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied => anyhow::anyhow!(
+            "[claude-code] `claude` CLI at {} failed to start: {detail}",
+            program.display()
+        ),
+        _ => anyhow::anyhow!("failed to spawn `claude`: {detail}"),
+    }
+}
+
+fn parse_turn_timeout(raw: Option<&str>) -> Duration {
+    let secs = raw
         .and_then(|raw| raw.trim().parse::<u64>().ok())
         .filter(|secs| *secs > 0)
         .unwrap_or(DEFAULT_TURN_TIMEOUT_SECS);
@@ -402,9 +435,14 @@ pub async fn run_turn(ctx: TurnContext<'_>) -> anyhow::Result<ChatResponse> {
         cmd.env("ANTHROPIC_API_KEY", key);
     }
 
+    // Carry the `[claude-code] `claude` CLI` marker so a spawn failure classifies
+    // as `provider_setup` and shows the user the real reason. Without it this
+    // lands in the generic catch-all and the user is told to report it on
+    // Discord — for a binary that vanished, or lost its execute bit, on their
+    // own machine between the version probe and this turn.
     let mut child = cmd
         .spawn()
-        .map_err(|e| anyhow::anyhow!("failed to spawn `claude`: {e}"))?;
+        .map_err(|e| spawn_error(e.kind(), &program, &e))?;
     if let Some(mut stdin) = child.stdin.take() {
         stdin
             .write_all(&stdin_bytes)
