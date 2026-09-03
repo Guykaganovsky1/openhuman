@@ -6,9 +6,7 @@ import { renderWithProviders } from '../../../../../test/test-utils';
 import { CustomRoutingDialog } from '../CustomRoutingDialog';
 
 vi.mock('../../../../../services/api/aiSettingsApi', async importOriginal => {
-  const actual = await importOriginal<
-    typeof import('../../../../../services/api/aiSettingsApi')
-  >();
+  const actual = await importOriginal<typeof import('../../../../../services/api/aiSettingsApi')>();
   return {
     ...actual,
     testProviderModel: vi.fn().mockResolvedValue({ reply: 'ok' }),
