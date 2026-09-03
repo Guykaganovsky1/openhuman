@@ -66,6 +66,15 @@ fn well_known_install() -> Option<PathBuf> {
 /// construction forever with no diagnostic. Two seconds is far longer than
 /// `command -v` needs and far shorter than a user will wait.
 ///
+/// `-lic`, not `-lc`: a login shell alone is the wrong shell. zsh reads
+/// `.zprofile`/`.zlogin` when it is a login shell and `.zshrc` only when it is
+/// interactive, and bash reads `.bash_profile` versus `.bashrc` the same way —
+/// and nvm, mise and asdf overwhelmingly install their init into the
+/// *interactive* file. Without `-i` this fallback misses exactly the layouts it
+/// exists to cover. `-i` is safe here because the bound above is enforced by
+/// killing the child, so an rc file that waits on a tty costs one timeout
+/// rather than a hung process.
+///
 /// `command -v` rather than `which`: it is POSIX-builtin and resolves the way
 /// the user's own terminal would. A shell *function* named `claude` (a common
 /// wrapper) makes it print the function body instead of a path, so anything
@@ -123,7 +132,7 @@ fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
     // the life of the app. Only the stdout pipe crosses the thread boundary;
     // killing the child closes it, which ends the reader on its own.
     let mut child = Command::new(shell)
-        .args(["-lc", "command -v claude"])
+        .args(["-lic", "command -v claude"])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())

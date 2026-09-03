@@ -208,34 +208,38 @@ fn turn_timeout_rejects_zero_and_honours_a_real_override() {
 /// because the marker classifies as a NON-RETRYABLE setup problem. ETXTBSY (the
 /// binary is being rewritten) and EAGAIN (fork pressure) are transient, and
 /// telling the user to reinstall would both mislead and suppress the retry that
-/// would have worked.
+/// would have worked. The question is answered by inspecting the binary rather
+/// than by reading the io `ErrorKind`, because the same two kinds are returned
+/// when `current_dir` is what failed.
+#[cfg(unix)]
 #[test]
 fn only_permanent_spawn_failures_claim_the_setup_marker() {
+    use std::os::unix::fs::PermissionsExt;
     const MARKER: &str = "[claude-code] `claude` CLI";
-    let path = std::path::Path::new("/usr/local/bin/claude");
 
-    for kind in [
-        std::io::ErrorKind::NotFound,
-        std::io::ErrorKind::PermissionDenied,
-    ] {
-        let err = spawn_error(kind, path, &"boom");
-        assert!(
-            err.to_string().contains(MARKER),
-            "{kind:?} is a broken install and must classify as provider_setup"
-        );
-    }
+    let dir = tempfile::tempdir().expect("tempdir");
+    let healthy = dir.path().join("claude");
+    std::fs::write(&healthy, "#!/bin/sh\n").expect("write bin");
+    std::fs::set_permissions(&healthy, std::fs::Permissions::from_mode(0o755)).expect("chmod");
 
-    for kind in [
-        std::io::ErrorKind::ResourceBusy,
-        std::io::ErrorKind::WouldBlock,
-        std::io::ErrorKind::Interrupted,
+    // Whatever the errno, an installed and executable CLI is not a broken
+    // install — the failure is transient or environmental, and stays retryable.
+    for detail in [
+        "Resource busy (os error 16)",
+        "Resource temporarily unavailable",
     ] {
-        let err = spawn_error(kind, path, &"boom");
+        let err = super::spawn_error(&healthy, &detail);
         assert!(
             !err.to_string().contains(MARKER),
-            "{kind:?} is transient and must stay retryable"
+            "a healthy binary must stay retryable: {detail}"
         );
     }
+
+    let err = super::spawn_error(&dir.path().join("gone"), &"boom");
+    assert!(
+        err.to_string().contains(MARKER),
+        "an absent binary is a broken install and must classify as provider_setup"
+    );
 }
 
 /// Under the Seatbelt jail the spawned program is `/usr/bin/sandbox-exec`, not
@@ -282,4 +286,34 @@ fn a_healthy_cli_is_not_reported_as_a_setup_failure() {
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).expect("chmod");
 
     assert_eq!(super::cli_unusable_detail(&bin), None);
+}
+
+/// A spawn failure caused by the working directory must not be blamed on the
+/// CLI. `spawn` returns `NotFound`/`PermissionDenied` for an unusable
+/// `current_dir` exactly as it does for a missing binary, so classifying by
+/// `ErrorKind` alone told users to reinstall a CLI that was fine — and did it
+/// non-retryably.
+#[cfg(unix)]
+#[test]
+fn a_working_directory_failure_is_not_blamed_on_the_cli() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let bin = dir.path().join("claude");
+    std::fs::write(&bin, "#!/bin/sh\n").expect("write bin");
+    std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+
+    let err = super::spawn_error(&bin, &"No such file or directory (os error 2)");
+    let text = err.to_string();
+    assert!(
+        !text.contains("[claude-code] `claude` CLI"),
+        "a healthy binary must not carry the setup marker: {text}"
+    );
+}
+
+#[test]
+fn a_spawn_failure_on_an_absent_cli_still_carries_the_setup_marker() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let err = super::spawn_error(&dir.path().join("claude"), &"os error 2");
+    assert!(err.to_string().starts_with("[claude-code] `claude` CLI"));
 }

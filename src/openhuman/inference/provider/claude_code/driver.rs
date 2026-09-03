@@ -45,17 +45,16 @@ fn turn_timeout() -> Duration {
 /// `ETXTBSY` while the binary is being rewritten, `EAGAIN` under fork pressure
 /// — is not a broken install: claiming it is would both misdirect the user and
 /// suppress the retry that would have worked.
-fn spawn_error(
-    kind: std::io::ErrorKind,
-    program: &Path,
-    detail: &dyn std::fmt::Display,
-) -> anyhow::Error {
-    match kind {
-        std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied => anyhow::anyhow!(
-            "[claude-code] `claude` CLI at {} failed to start: {detail}",
-            program.display()
-        ),
-        _ => anyhow::anyhow!("failed to spawn `claude`: {detail}"),
+fn spawn_error(bin_path: &Path, detail: &dyn std::fmt::Display) -> anyhow::Error {
+    // The io ErrorKind alone cannot carry this decision. `NotFound` and
+    // `PermissionDenied` are equally what `spawn` returns when `current_dir`
+    // is the thing that failed — the action dir was removed, or is not
+    // enterable — and the binary is perfectly fine. Stamping the setup marker
+    // on that tells the user to reinstall a CLI that is not broken, and makes
+    // the error non-retryable. So ask the binary directly instead of inferring.
+    match cli_unusable_detail(bin_path) {
+        Some(reason) => anyhow::anyhow!("{reason} ({detail})"),
+        None => anyhow::anyhow!("failed to spawn `claude`: {detail}"),
     }
 }
 
@@ -476,9 +475,7 @@ pub async fn run_turn(ctx: TurnContext<'_>) -> anyhow::Result<ChatResponse> {
     // lands in the generic catch-all and the user is told to report it on
     // Discord — for a binary that vanished, or lost its execute bit, on their
     // own machine between the version probe and this turn.
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| spawn_error(e.kind(), &program, &e))?;
+    let mut child = cmd.spawn().map_err(|e| spawn_error(&bin_path, &e))?;
     if let Some(mut stdin) = child.stdin.take() {
         stdin
             .write_all(&stdin_bytes)
