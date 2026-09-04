@@ -194,6 +194,46 @@ describe('SkillsExplorerTab', () => {
     expect(screen.queryByTestId('registry-show-more')).toBeNull();
   });
 
+  // A superseded request still runs its `finally`. If the older one settles
+  // second-to-last it must not clear the spinner that belongs to the request
+  // whose rows will actually be rendered.
+  it('keeps the loading state owned by the newest catalog request', async () => {
+    const { skillsApi } = await import('../../../services/api/skillsApi');
+    const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
+    vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
+
+    const deferred: Array<(page: ReturnType<typeof catalogPage>) => void> = [];
+    vi.mocked(skillRegistryApi.browse).mockImplementation(
+      () => new Promise(resolve => deferred.push(resolve))
+    );
+
+    render(<SkillsExplorerTab />);
+    await waitFor(() => expect(deferred).toHaveLength(1));
+
+    const refresh = screen.getByRole('button', { name: 'Refresh registry' });
+    expect(refresh).toBeDisabled();
+
+    // A second request supersedes the first. The mount request is now stale.
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('skill-search-input'), {
+        target: { value: 'anything' },
+      });
+    });
+    await waitFor(() => expect(deferred.length).toBeGreaterThan(1));
+
+    // The stale request settles first — it must not touch the loading flag.
+    await act(async () => {
+      deferred[0](catalogPage([]));
+    });
+    expect(refresh).toBeDisabled();
+
+    // The newest one settles: now the spinner may clear.
+    await act(async () => {
+      deferred[deferred.length - 1](catalogPage([]));
+    });
+    await waitFor(() => expect(refresh).not.toBeDisabled());
+  });
+
   it('searches catalog via RPC when typing in search box', async () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');

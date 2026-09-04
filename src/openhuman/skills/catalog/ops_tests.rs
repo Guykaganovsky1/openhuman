@@ -447,3 +447,17 @@ async fn search_rejects_stale_and_fetches_fresh() {
     store::clear_cache();
     std::env::remove_var(CACHE_DIR_ENV);
 }
+
+/// The predicate that decides whether a browse may be answered from a stale
+/// cache. An empty query or an empty source list is the unfiltered default and
+/// must stay on the fast path.
+#[test]
+fn only_a_real_filter_forces_a_fresh_catalog() {
+    assert!(!is_filtered_read(None, None));
+    assert!(!is_filtered_read(Some(""), None));
+    assert!(!is_filtered_read(Some("   "), None));
+    assert!(!is_filtered_read(None, Some(&[])));
+
+    assert!(is_filtered_read(Some("pdf"), None));
+    assert!(is_filtered_read(None, Some(&["anthropic".to_string()])));
+}

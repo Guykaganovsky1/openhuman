@@ -108,6 +108,36 @@ describe('PermissionsPanel', () => {
     for (const r of radios) expect(r.tagName).toBe('BUTTON');
   });
 
+  // A `role="radiogroup"` that is three tab stops with no arrow handling is a
+  // label with no behaviour behind it — the ARIA promises a composite widget
+  // that the keyboard does not deliver.
+  it('navigates the tier presets with the arrow keys as one composite group', async () => {
+    renderWithProviders(<PermissionsPanel />);
+    const group = await screen.findByRole('radiogroup');
+    const radios = within(group).getAllByRole('radio');
+
+    // One stop in the tab order: only the checked option is reachable by Tab.
+    await waitFor(() =>
+      expect(radios.filter(r => r.getAttribute('tabindex') === '0')).toHaveLength(1)
+    );
+    expect(screen.getByTestId('permissions-preset-supervised')).toHaveAttribute('tabindex', '0');
+
+    fireEvent.keyDown(screen.getByTestId('permissions-preset-supervised'), { key: 'ArrowDown' });
+    await waitFor(() =>
+      expect(screen.getByTestId('permissions-preset-full')).toHaveAttribute('aria-checked', 'true')
+    );
+    expect(screen.getByTestId('permissions-preset-full')).toHaveFocus();
+
+    // Home jumps to the first option, and selection follows focus.
+    fireEvent.keyDown(screen.getByTestId('permissions-preset-full'), { key: 'Home' });
+    await waitFor(() =>
+      expect(screen.getByTestId('permissions-preset-readonly')).toHaveAttribute(
+        'aria-checked',
+        'true'
+      )
+    );
+  });
+
   it('selecting the "Look, don\'t touch" preset persists readonly level', async () => {
     renderWithProviders(<PermissionsPanel />);
     fireEvent.click(await screen.findByText("Look, don't touch"));

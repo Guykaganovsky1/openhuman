@@ -210,18 +210,46 @@ const PermissionsPanel = () => {
               {/* One tier at a time, so the cards are a radio group. They stay
                   real `<button>`s — Enter/Space activation and focus come from
                   the platform — with the ARIA roles layered on so assistive
-                  tech reports which tier is selected. */}
+                  tech reports which tier is selected.
+
+                  A composite radio group is one stop in the tab order, not
+                  three, and arrows move within it. Without that a keyboard user
+                  tabs through every tier and the group's ARIA promise is a
+                  label with no behaviour behind it — so `tabIndex` roves to the
+                  selected option and the arrow keys select-and-focus. */}
               <div
                 className="grid gap-2"
                 role="radiogroup"
                 aria-label={t('settings.permissions.accessMode')}>
-                {presets.map(p => (
+                {presets.map((p, index) => (
                   <Button
                     key={p.id}
                     type="button"
                     variant="tertiary"
                     role="radio"
                     aria-checked={level === p.id}
+                    tabIndex={level === p.id || (level == null && index === 0) ? 0 : -1}
+                    onKeyDown={event => {
+                      const last = presets.length - 1;
+                      let next: number | null = null;
+                      if (event.key === 'ArrowDown' || event.key === 'ArrowRight')
+                        next = index === last ? 0 : index + 1;
+                      else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft')
+                        next = index === 0 ? last : index - 1;
+                      else if (event.key === 'Home') next = 0;
+                      else if (event.key === 'End') next = last;
+                      if (next === null) return;
+                      event.preventDefault();
+                      const target = presets[next];
+                      selectTier(target.id);
+                      // Selection follows focus in a radio group, so the newly
+                      // selected option must actually receive it.
+                      (
+                        event.currentTarget.parentElement?.querySelectorAll('[role="radio"]')[
+                          next
+                        ] as HTMLElement | undefined
+                      )?.focus();
+                    }}
                     onClick={() => selectTier(p.id)}
                     data-testid={`permissions-preset-${p.id}`}
                     className={`inline-block! h-auto w-full justify-start! text-left rounded-lg border p-3 transition ${

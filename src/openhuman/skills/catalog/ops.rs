@@ -310,7 +310,18 @@ pub async fn browse_catalog_page(
         limit = ?limit,
         "[skill_registry] browse_catalog_page"
     );
-    let catalog = browse_catalog(force_refresh).await?;
+    // A filtered read may not be computed over a stale catalog. `browse_catalog`
+    // serves a stale cache while it revalidates, which is right for "show me the
+    // catalog" — the user sees rows immediately and they refresh underneath. It
+    // is wrong for "show me the rows matching X": a skill that has just appeared
+    // or changed is simply absent from the answer, and the caller has no way to
+    // tell that from "no such skill". `browse_catalog_fresh` exists for exactly
+    // this, so the filtered path takes it, keeping the caller's `force_refresh`.
+    let catalog = if is_filtered_read(query, sources) {
+        browse_catalog_with(force_refresh, StaleMode::Reject, fetch_catalog_uncached).await?
+    } else {
+        browse_catalog(force_refresh).await?
+    };
     let page = page_catalog(catalog, query, sources, offset, limit);
     tracing::debug!(
         returned = page.entries.len(),
@@ -318,6 +329,18 @@ pub async fn browse_catalog_page(
         "[skill_registry] browse page cut"
     );
     Ok(page)
+}
+
+/// Whether this browse is a *filtered* read — one whose answer is a subset the
+/// caller cannot audit, so a skill missing from it is indistinguishable from a
+/// skill that does not match.
+///
+/// An empty or whitespace-only `query` and an empty `sources` list are the
+/// unfiltered defaults, not filters; treating them as filters would push every
+/// plain catalog open onto the no-stale path and lose the instant first paint
+/// the stale cache exists to give.
+fn is_filtered_read(query: Option<&str>, sources: Option<&[String]>) -> bool {
+    query.is_some_and(|q| !q.trim().is_empty()) || sources.is_some_and(|s| !s.is_empty())
 }
 
 /// Pure filter-then-slice half of [`browse_catalog_page`], split out so the

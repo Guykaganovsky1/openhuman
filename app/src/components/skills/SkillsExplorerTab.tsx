@@ -554,8 +554,14 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
         log('fetchCatalogPage: error=%s', msg);
         setCatalogError(msg);
       } finally {
-        if (append) setCatalogLoadingMore(false);
-        else setCatalogLoading(false);
+        // Only the newest request owns the loading flag. A superseded request
+        // still reaches this block, and if it settles second it would clear the
+        // spinner while the request whose results will actually be rendered is
+        // still in flight — stale rows, no loading state, for the active query.
+        if (catalogRequestRef.current === requestId) {
+          if (append) setCatalogLoadingMore(false);
+          else setCatalogLoading(false);
+        }
       }
     },
     []
