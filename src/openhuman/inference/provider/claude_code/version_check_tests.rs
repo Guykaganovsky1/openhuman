@@ -244,13 +244,7 @@ fn a_timed_out_login_shell_takes_its_grandchildren_with_it() {
 
     let gone_by = std::time::Instant::now() + Duration::from_secs(1);
     loop {
-        let alive = std::process::Command::new("kill")
-            .args(["-0", &grandchild.to_string()])
-            .stderr(std::process::Stdio::null())
-            .status()
-            .expect("run kill -0")
-            .success();
-        if !alive {
+        if !is_running(grandchild) {
             break;
         }
         assert!(
@@ -259,4 +253,28 @@ fn a_timed_out_login_shell_takes_its_grandchildren_with_it() {
         );
         std::thread::sleep(Duration::from_millis(20));
     }
+}
+
+/// Whether `pid` names a process that is still *running*, as opposed to one
+/// that is dead but not yet reaped.
+///
+/// `kill -0` cannot answer this: it succeeds for a zombie, because a zombie
+/// still owns its pid until someone waits on it. That distinction does not
+/// matter on a desktop, where the orphan is reparented to a PID 1 that reaps
+/// it within milliseconds — and it decides the test inside CI's container,
+/// where PID 1 is the job's own command and reaps nothing. The killed
+/// grandchild sits there as a zombie and `kill -0` reports it alive forever.
+///
+/// So ask for the state instead. `ps` prints `Z` for a zombie on both Linux and
+/// macOS, and prints nothing at all once the process is gone.
+#[cfg(unix)]
+fn is_running(pid: i32) -> bool {
+    let out = std::process::Command::new("ps")
+        .args(["-o", "state=", "-p", &pid.to_string()])
+        .stderr(std::process::Stdio::null())
+        .output()
+        .expect("run ps");
+    let state = String::from_utf8_lossy(&out.stdout);
+    let state = state.trim();
+    !state.is_empty() && !state.starts_with('Z')
 }
