@@ -207,12 +207,21 @@ const PermissionsPanel = () => {
               <p className="text-xs text-content-muted">
                 {t('settings.permissions.accessModeDesc')}
               </p>
-              <div className="grid gap-2">
+              {/* One tier at a time, so the cards are a radio group. They stay
+                  real `<button>`s — Enter/Space activation and focus come from
+                  the platform — with the ARIA roles layered on so assistive
+                  tech reports which tier is selected. */}
+              <div
+                className="grid gap-2"
+                role="radiogroup"
+                aria-label={t('settings.permissions.accessMode')}>
                 {presets.map(p => (
                   <Button
                     key={p.id}
                     type="button"
                     variant="tertiary"
+                    role="radio"
+                    aria-checked={level === p.id}
                     onClick={() => selectTier(p.id)}
                     data-testid={`permissions-preset-${p.id}`}
                     className={`inline-block! h-auto w-full justify-start! text-left rounded-lg border p-3 transition ${
@@ -238,12 +247,14 @@ const PermissionsPanel = () => {
                     <p className="mt-1 text-xs text-content-muted">{p.description}</p>
                   </Button>
                 ))}
-                {level === 'full' && (
-                  <p className="rounded border border-coral-500/40 bg-coral-500/5 dark:bg-coral-500/10 p-2 text-xs text-coral-600 dark:text-coral-300">
-                    {t('settings.agentAccess.fullWarning')}
-                  </p>
-                )}
               </div>
+              {/* Outside the radiogroup: it is a consequence of the choice, not
+                  one of the options. */}
+              {level === 'full' && (
+                <p className="rounded border border-coral-500/40 bg-coral-500/5 dark:bg-coral-500/10 p-2 text-xs text-coral-600 dark:text-coral-300">
+                  {t('settings.agentAccess.fullWarning')}
+                </p>
+              )}
             </section>
 
             {/* Folders the assistant can use */}

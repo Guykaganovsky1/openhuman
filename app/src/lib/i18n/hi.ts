@@ -718,6 +718,7 @@ const messages: TranslationMap = {
   'chat.startConversation': 'बातचीत शुरू करें',
   'chat.regenerate': 'फिर से बनाएं',
   'chat.copyResponse': 'जवाब कॉपी करें',
+  'chat.copyMessage': 'संदेश कॉपी करें',
   'chat.citations': 'सोर्स',
   'chat.toolUsed': 'टूल इस्तेमाल हुआ',
   'scope.legacy': 'लीगेसी',
@@ -2328,9 +2329,11 @@ const messages: TranslationMap = {
   'chat.noThreads': 'अभी कोई थ्रेड नहीं',
   'chat.noLabelThreads': 'कोई "{label}" थ्रेड नहीं',
   'chat.deleteThread': 'थ्रेड डिलीट करें',
+  'chat.deleteThreadAria': 'बातचीत {title} हटाएं',
   'chat.deleteThreadConfirm': 'क्या आप वाकई "{title}" डिलीट करना चाहते हैं?',
   'chat.untitledThread': 'बिना शीर्षक की थ्रेड',
   'chat.editThreadTitle': 'थ्रेड शीर्षक संपादित करें',
+  'chat.renameThreadAria': 'बातचीत {title} का नाम बदलें',
   'chat.hideSidebar': 'साइडबार छुपाएं',
   'chat.showSidebar': 'साइडबार दिखाएं',
   'chat.searchThreads': 'बातचीत खोजें',
@@ -2846,6 +2849,7 @@ const messages: TranslationMap = {
   'onboarding.skills.status.unavailable': 'उपलब्ध नहीं',
   'composio.statusUnavailable': 'स्टेटस उपलब्ध नहीं',
   'composio.authExpired': 'प्रमाणीकरण समाप्त',
+  'composio.authRevoked': 'पहुँच रद्द की गई',
   'composio.reconnect': 'पुनः कनेक्ट करें',
   'composio.expiredAuthorization': '{name} प्राधिकरण समाप्त हो गया',
   'composio.expiredDescription':
@@ -3109,6 +3113,8 @@ const messages: TranslationMap = {
     'नीचे एक तरीका चुनें: OpenHuman के ज़रिए अपना अकाउंट लिंक करें, OAuth से बॉट इंस्टॉल करें, या Discord डेवलपर पोर्टल से अपना खुद का बॉट टोकन पेस्ट करें।',
   'channels.connectHelp.telegram':
     'नीचे एक तरीका चुनें: लिंक करने के लिए मैनेज्ड OpenHuman बॉट को मैसेज करें, या @BotFather से अपना खुद का बॉट टोकन पेस्ट करें।',
+  'channels.connectHelp.imessage':
+    'किसी क्रेडेंशियल की जरूरत नहीं। OpenHuman स्थानीय Messages डेटाबेस पढ़ता है, इसलिए System Settings > Privacy & Security > Full Disk Access में इसे फुल डिस्क एक्सेस दें और फिर ऐप को दोबारा शुरू करें।',
   'channels.connectHelp.slackNote':
     'Slack ढूँढ रहे हैं? Slack यहाँ मैसेजिंग चैनल के रूप में नहीं, बल्कि कनेक्शन → OAuth में एक ऐप के रूप में कनेक्ट होता है।',
   'channels.web.displayName': 'वेब',
@@ -4141,7 +4147,8 @@ const messages: TranslationMap = {
   'pages.settings.features.notifications': 'नोटिफिकेशन',
   'pages.settings.features.notificationsDesc': 'नोटिफ़िकेशन विवरण',
   'pages.settings.features.tools': 'टूल्स',
-  'pages.settings.features.toolsDesc': 'टूल्स विवरण',
+  'pages.settings.features.toolsDesc':
+    'श्रेणी के अनुसार समूहित एजेंट टूल अलग-अलग चालू या बंद करें।',
   'pages.settings.featuresSection.title': 'फीचर्स',
   'privacy.dataKind.credentials': 'क्रेडेंशियल',
   'privacy.dataKind.derived': 'डिराइव्ड',
@@ -4224,7 +4231,7 @@ const messages: TranslationMap = {
   'rewards.coupon.subtitle': 'उपशीर्षक',
   'rewards.coupon.title': 'कूपन कोड रिडीम करें',
   'rewards.referralSection.activity': 'रेफरल एक्टिविटी',
-  'rewards.referralSection.apply': 'लागू हो रहा है…',
+  'rewards.referralSection.apply': 'लागू करें',
   'rewards.referralSection.applying': 'लागू हो रहा है…',
   'rewards.referralSection.colReferredUser': 'रेफर किया यूज़र',
   'rewards.referralSection.colReward': 'रिवॉर्ड',

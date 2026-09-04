@@ -511,7 +511,9 @@ describe('Conversations — smoke render (#1123 welcome-lock removal)', () => {
     });
     await openSidebar();
 
-    const alphaRow = await screen.findByRole('button', { name: /Thread Alpha/ });
+    // Query by row test id, not by accessible name: the row's rename/delete
+    // buttons now name the thread too, so /Thread Alpha/ matches three nodes.
+    const alphaRow = await screen.findByTestId('thread-row-t-1');
     await act(async () => {
       fireEvent.click(alphaRow);
     });
@@ -519,7 +521,7 @@ describe('Conversations — smoke render (#1123 welcome-lock removal)', () => {
       expect(screen.getByTestId('route-path')).toHaveTextContent('/chat/t-1');
     });
 
-    const betaRow = await screen.findByRole('button', { name: /Thread Beta/ });
+    const betaRow = await screen.findByTestId('thread-row-t-2');
     await act(async () => {
       fireEvent.keyDown(betaRow, { key: 'Enter' });
     });
@@ -550,7 +552,9 @@ describe('Conversations — smoke render (#1123 welcome-lock removal)', () => {
     });
     await openSidebar();
 
-    const alphaRow = await screen.findByRole('button', { name: /Thread Alpha/ });
+    // Query by row test id, not by accessible name: the row's rename/delete
+    // buttons now name the thread too, so /Thread Alpha/ matches three nodes.
+    const alphaRow = await screen.findByTestId('thread-row-t-1');
     await act(async () => {
       fireEvent.click(alphaRow);
     });

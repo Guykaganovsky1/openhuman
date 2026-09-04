@@ -55,6 +55,17 @@ describe('registerGlobalActions', () => {
     expect(navigate).toHaveBeenCalledWith('/home');
   });
 
+  it('nav.activity navigates to the final destination, not the redirect stub', () => {
+    // `/activity` only exists as a <Navigate> redirect in AppRoutes; the palette
+    // must target the surface it redirects to.
+    const frame = hotkeyManager.pushFrame('global', 'root');
+    const navigate = vi.fn();
+    registerGlobalActions(makeHandlers({ navigate }), frame);
+    registry.setActiveStack([frame]);
+    registry.runAction('nav.activity');
+    expect(navigate).toHaveBeenCalledWith('/settings/notifications');
+  });
+
   it('routes chat/view/general actions to their handlers', () => {
     const frame = hotkeyManager.pushFrame('global', 'root');
     const newChat = vi.fn();

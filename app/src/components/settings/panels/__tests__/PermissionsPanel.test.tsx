@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '../../../../test/test-utils';
@@ -85,6 +85,27 @@ describe('PermissionsPanel', () => {
     expect(supervisedBtn.className).toContain('bg-primary-50');
     const readonlyBtn = screen.getByTestId('permissions-preset-readonly');
     expect(readonlyBtn.className).not.toContain('bg-primary-50');
+  });
+
+  it('exposes the tier presets as a radiogroup with the active tier checked', async () => {
+    renderWithProviders(<PermissionsPanel />);
+    const group = await screen.findByRole('radiogroup');
+    expect(group).toHaveAttribute('aria-label');
+
+    const radios = within(group).getAllByRole('radio');
+    expect(radios).toHaveLength(3);
+    // `aria-checked` must track the loaded tier, not just the CSS highlight.
+    expect(screen.getByTestId('permissions-preset-supervised')).toHaveAttribute(
+      'aria-checked',
+      'true'
+    );
+    expect(screen.getByTestId('permissions-preset-readonly')).toHaveAttribute(
+      'aria-checked',
+      'false'
+    );
+    expect(screen.getByTestId('permissions-preset-full')).toHaveAttribute('aria-checked', 'false');
+    // Real buttons, so Enter/Space activation comes from the platform.
+    for (const r of radios) expect(r.tagName).toBe('BUTTON');
   });
 
   it('selecting the "Look, don\'t touch" preset persists readonly level', async () => {

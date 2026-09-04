@@ -33,7 +33,14 @@ import {
   type ThemeVariant,
   upsertCustomTheme,
 } from '../../../store/themeSlice';
-import { Button, TextArea, TextField, ToggleGroupItem, ToggleGroupRoot } from '../../ui';
+import {
+  Button,
+  ConfirmDialog,
+  TextArea,
+  TextField,
+  ToggleGroupItem,
+  ToggleGroupRoot,
+} from '../../ui';
 import { SettingsSection, SettingsSelect } from '../controls';
 import SettingsPanel from '../layout/SettingsPanel';
 import ColorTokenField from './theme/ColorTokenField';
@@ -161,6 +168,9 @@ const ThemeStudioPanel = ({ embedded = false }: ThemeStudioPanelProps = {}) => {
   const [importText, setImportText] = useState('');
   const [importError, setImportError] = useState('');
   const [copied, setCopied] = useState(false);
+  // Deleting a custom theme discards every override in it with no undo, so it
+  // is confirmed the way the app's other destructive actions are.
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleExport = async () => {
     const active = customThemes.find(th => th.id === activeThemeId) ?? effectiveTheme;
@@ -486,7 +496,7 @@ const ThemeStudioPanel = ({ embedded = false }: ThemeStudioPanelProps = {}) => {
               variant="secondary"
               tone="danger"
               size="sm"
-              onClick={() => dispatch(deleteCustomTheme(activeThemeId))}>
+              onClick={() => setConfirmDelete(true)}>
               {t('settings.theme.delete', 'Delete theme')}
             </Button>
             <Button variant="secondary" size="sm" onClick={handleExport}>
@@ -531,6 +541,21 @@ const ThemeStudioPanel = ({ embedded = false }: ThemeStudioPanelProps = {}) => {
           </Button>
         </div>
       </SettingsSection>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          destructive
+          testId="theme-delete-confirm"
+          title={t('settings.theme.delete', 'Delete theme')}
+          body={t('clearData.irreversible')}
+          confirmLabel={t('common.delete')}
+          onConfirm={() => {
+            setConfirmDelete(false);
+            dispatch(deleteCustomTheme(activeThemeId));
+          }}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
     </>
   );
 

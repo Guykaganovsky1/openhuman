@@ -27,6 +27,16 @@ interface McpBinaryInfo {
 
 type McpClient = 'claude-desktop' | 'cursor' | 'codex' | 'zed';
 
+/**
+ * Stands in for the real binary path in the JSON snippet while that path is
+ * unknown (still resolving, or resolution failed). It has to remain a *path*:
+ * the snippet is what the Copy button hands the user, so interpolating the
+ * translated "binary not found" sentence there produced config JSON that could
+ * never work. The not-found state is reported on its own status line instead.
+ * Not translated — it is a filesystem path, not prose.
+ */
+const PLACEHOLDER_BINARY_PATH = '/path/to/openhuman-core';
+
 // ---------------------------------------------------------------------------
 // Static tool catalogue
 // ---------------------------------------------------------------------------
@@ -137,8 +147,7 @@ const McpServerPanel = ({ embedded = false }: McpServerPanelProps = {}) => {
       : /linux/i.test(navigator.userAgent)
         ? 'linux'
         : 'macos');
-  const displayPath = binaryPath ?? t('settings.mcpServer.binaryPathNotFound');
-  const snippet = buildSnippet(activeClient, displayPath);
+  const snippet = buildSnippet(activeClient, binaryPath ?? PLACEHOLDER_BINARY_PATH);
   const configPath = configFilePathFor(activeClient, os);
 
   const handleCopy = async () => {

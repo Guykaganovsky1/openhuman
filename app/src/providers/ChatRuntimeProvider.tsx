@@ -1241,7 +1241,22 @@ const ChatRuntimeProvider = ({ children }: { children: React.ReactNode }) => {
         void finishChatDoneTurn(event, 'ordinary');
       },
       onError: event => {
-        const eventKey = `error:${event.thread_id}:${event.request_id ?? 'none'}:${event.error_type}`;
+        // Dedupe by TURN (thread + request), never by `error_type`: one failed
+        // turn can surface more than one classification for the same
+        // `request_id` (a per-attempt error alongside the terminal one), and
+        // each one that gets through persists an identical agent bubble. The
+        // `lastMsg` guard further down cannot catch that — it reads Redux,
+        // which only updates once `addInferenceResponse` has round-tripped
+        // through `threadApi.appendMessage`, so every event landing inside that
+        // window reads the same stale transcript tail and appends again.
+        // `request_id` is a non-optional `String` on the core's
+        // `WebChannelEvent`, so a genuinely distinct turn still carries a
+        // distinct key and its error is still surfaced.
+        // Without a request id there is no turn to key on; fall back to the
+        // classification so one missing id cannot mute a thread for the TTL.
+        const eventKey = event.request_id
+          ? `error:${event.thread_id}:${event.request_id}`
+          : `error:${event.thread_id}:none:${event.error_type}`;
         if (
           !markChatEventSeen(eventKey, { threadId: event.thread_id, requestId: event.request_id })
         )

@@ -69,4 +69,40 @@ describe('i18n coverage', () => {
     const flat = locale === 'en' ? enFlat : loadLocale(locale);
     expect(flat['settings.search.engineManagedDesc']).toContain('Exa');
   });
+
+  // The Tools settings page shipped with 'Tools desc' as its English value (and
+  // a literal translation of that placeholder in several locales) — a note to
+  // the author that reached users as body copy.
+  it('the Tools settings description is real copy, not a placeholder', () => {
+    const value = enFlat['pages.settings.features.toolsDesc'];
+    expect(value).toBeDefined();
+    expect(value.toLowerCase()).not.toBe('tools desc');
+    // Long enough to be a sentence rather than a stub of the title.
+    expect(value.length).toBeGreaterThan(20);
+  });
+
+  // The referral "Apply" button read "Applying…" at rest: the idle key carried
+  // the loading string in all 14 locales, so the two were indistinguishable.
+  it.each(['en', ...LOCALES])('locale %s labels the referral apply button at rest', locale => {
+    const flat = locale === 'en' ? enFlat : loadLocale(locale);
+    const idle = flat['rewards.referralSection.apply'];
+    const loading = flat['rewards.referralSection.applying'];
+    expect(idle).toBeDefined();
+    expect(loading).toBeDefined();
+    expect(idle).not.toBe(loading);
+    // The loading label carries the ellipsis; the idle one must not.
+    expect(idle).not.toContain('…');
+    expect(idle).not.toContain('...');
+  });
+
+  // Icon-only thread-row actions are named after the thread they act on, so
+  // every locale has to keep the interpolation placeholder intact.
+  it.each(['en', ...LOCALES])(
+    'locale %s keeps the {title} placeholder in thread actions',
+    locale => {
+      const flat = locale === 'en' ? enFlat : loadLocale(locale);
+      expect(flat['chat.renameThreadAria']).toContain('{title}');
+      expect(flat['chat.deleteThreadAria']).toContain('{title}');
+    }
+  );
 });

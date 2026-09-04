@@ -135,11 +135,10 @@ describe('connections / channels back-compat redirects (real route table)', () =
 
 describe('automation route slugs', () => {
   it('/routines redirects to /flows', () => {
-    // `AGENTS.md:175` documents `/routines` -> `/settings/automations`. The two
-    // agree on where the user ends up: `/settings/automations` is itself
-    // `<Navigate to="/flows">` (settingsRouteElements.tsx:164), so the code
-    // short-circuits one hop of the documented chain and lands in the same
-    // place. `/workflows` is the real divergence — see the test below.
+    // `AGENTS.md:175` used to document `/routines` -> `/settings/automations`,
+    // which is itself `<Navigate to="/flows">` (settingsRouteElements.tsx) —
+    // the same destination, one hop longer. The doc line now names `/flows`
+    // directly, so the two agree literally rather than only in effect.
     const at = renderAt('/routines');
     expect(at.href()).toBe('/flows');
     expect(at.page()).toBe('flows');
@@ -149,26 +148,23 @@ describe('automation route slugs', () => {
     // Webhooks were retired from the UI; the route survives only to keep old
     // deep links from 404-ing.
     //
-    // ⚠️ CONTRACT DIVERGENCE. `AGENTS.md:175` is the authoritative route table
-    // and specifies `/webhooks` -> `/settings/integrations#webhooks`. The code
-    // (`AppRoutes.tsx`) emits no fragment, so the Webhooks section is not
-    // selected on arrival. This asserts what the app DOES; changing it to the
-    // documented destination would be a knowingly-failing test. The fix is a
-    // source change and someone has to decide which side moves — see W5 BUG-13.
+    // The divergence this used to flag is resolved, and the DOCS moved, not the
+    // code: `AGENTS.md:175` specified `/webhooks` -> `/settings/integrations
+    // #webhooks`, but there is no webhooks UI anywhere under `pages/` or
+    // `components/` for a `#webhooks` fragment to select. Emitting one would
+    // have pointed at nothing. The doc line now describes the real two-hop
+    // landing (`/settings/integrations`, which forwards to `/connections`).
     const at = renderAt('/webhooks');
     expect(at.href()).toBe('/settings/integrations');
   });
 
   it('/workflows is NOT a redirect — it renders the legacy SKILL.md hub', () => {
-    // ⚠️ CONTRACT DIVERGENCE, and a three-way one. `AGENTS.md:175` says
-    // `/workflows` -> `/settings/automations`; `AppRoutes.tsx`'s own `/flows`
-    // block comment says it redirects to `/flows`; the code renders <Activity/>
-    // and stays put. Three statements, three destinations. This pins the code.
-    // See W5 BUG-13 (#5883, Codex).
-    // Guards against the stale claim in `AppRoutes.tsx`'s own `/flows` block
-    // comment, which says "the bare `/workflows` and `/routines` slugs now
-    // redirect here (to `/flows`)". Only `/routines` does. `/workflows` renders
-    // Activity, per the comment directly above its own route.
+    // This used to be a three-way divergence: `AGENTS.md:175` said
+    // `/workflows` -> `/settings/automations`, `AppRoutes.tsx`'s own `/flows`
+    // block comment said it redirects to `/flows`, and the code rendered
+    // <Activity/> and stayed put. Both statements were wrong and both were
+    // corrected to match the code, which is what this pins. It still guards the
+    // claim in that block comment, so a revert of either wording fails here.
     const at = renderAt('/workflows');
     expect(at.href()).toBe('/workflows');
     expect(at.page()).toBe('activity');
@@ -197,5 +193,16 @@ describe('/flows canvas route ranking', () => {
 
   it('/flows/:id resolves to the canvas and hands it the id', () => {
     expect(renderAt('/flows/flow_abc123').page()).toBe('flow-canvas:flow_abc123');
+  });
+
+  it('/flows/discoveries redirects to the Discoveries view instead of being read as a flow id', () => {
+    // The Workflows sub-pages are `?view=` states, but `/flows/discoveries` is
+    // the address `FlowsPage.tsx`'s own comment names, so people type it.
+    // Unrouted, `/flows/:id` captured it and the canvas called
+    // `flows_get('discoveries')` — "could not be found", over a core error.
+    const at = renderAt('/flows/discoveries');
+    expect(at.href()).toBe('/flows?view=discoveries');
+    expect(at.page()).toBe('flows');
+    expect(at.page()).not.toBe('flow-canvas:discoveries');
   });
 });

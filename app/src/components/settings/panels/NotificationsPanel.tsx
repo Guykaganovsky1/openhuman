@@ -10,12 +10,12 @@ interface NotificationsPanelProps {
   embedded?: boolean;
 }
 
+// Two categories are deliberately absent: `messages` (it described "embedded
+// webview accounts", and the embedded provider webviews were removed in #5478)
+// and `meetings` (meetings were removed from the product entirely). Both remain
+// in `NotificationCategory` and in persisted preferences — this hides the dead
+// toggles, it does not migrate state.
 const CATEGORIES: { id: NotificationCategory; titleKey: string; descKey: string }[] = [
-  {
-    id: 'messages',
-    titleKey: 'settings.notifications.category.messages.title',
-    descKey: 'settings.notifications.category.messages.desc',
-  },
   {
     id: 'agents',
     titleKey: 'settings.notifications.category.agents.title',
@@ -30,11 +30,6 @@ const CATEGORIES: { id: NotificationCategory; titleKey: string; descKey: string 
     id: 'system',
     titleKey: 'settings.notifications.category.system.title',
     descKey: 'settings.notifications.category.system.desc',
-  },
-  {
-    id: 'meetings',
-    titleKey: 'settings.notifications.category.meetings.title',
-    descKey: 'settings.notifications.category.meetings.desc',
   },
   {
     id: 'reminders',

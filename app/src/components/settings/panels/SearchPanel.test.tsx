@@ -78,6 +78,15 @@ describe('SearchPanel — unified web-access modes', () => {
     expect(radio(ALLOW_ALL)).toHaveAttribute('aria-checked', 'false');
   });
 
+  test('a failed settings load surfaces the error instead of rendering nothing', async () => {
+    hoisted.getSearchSettings.mockRejectedValue(new Error('core unreachable'));
+    renderWithProviders(<SearchPanel embedded />);
+
+    await waitFor(() =>
+      expect(screen.getByText('settings.search.statusError: core unreachable')).toBeInTheDocument()
+    );
+  });
+
   test('selecting Disabled persists the disabled engine', async () => {
     renderWithProviders(<SearchPanel embedded />);
     const disabled = await screen.findByTestId('search-engine-disabled');

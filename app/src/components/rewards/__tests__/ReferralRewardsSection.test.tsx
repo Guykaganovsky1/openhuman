@@ -96,6 +96,32 @@ describe('ReferralRewardsSection', () => {
     expect(await screen.findByText('Copied')).toBeInTheDocument();
   });
 
+  it('labels the referral apply button "Apply" at rest and "Applying…" while in flight', async () => {
+    mocks.mockReferralApi.getStats.mockResolvedValueOnce(statsFixture);
+    // Hold the claim open so the loading label is observable.
+    let resolveClaim: (v: unknown) => void = () => {};
+    mocks.mockReferralApi.claimReferral.mockReturnValueOnce(
+      new Promise(res => {
+        resolveClaim = res;
+      })
+    );
+
+    render(<ReferralRewardsSection />);
+
+    // At rest the control says "Apply" — the key used to carry "Applying…".
+    const applyButton = await screen.findByRole('button', { name: 'Apply' });
+    expect(screen.queryByRole('button', { name: 'Applying…' })).toBeNull();
+
+    const input = screen.getByPlaceholderText('Referral code');
+    fireEvent.change(input, { target: { value: 'FRIEND01' } });
+    fireEvent.click(applyButton);
+
+    expect(await screen.findByRole('button', { name: 'Applying…' })).toBeInTheDocument();
+
+    resolveClaim({});
+    await waitFor(() => expect(mocks.mockReferralApi.claimReferral).toHaveBeenCalled());
+  });
+
   it('shows Copy failed hint when clipboard throws', async () => {
     writeText.mockRejectedValueOnce(new Error('NotAllowedError'));
     mocks.mockReferralApi.getStats.mockResolvedValueOnce(statsFixture);

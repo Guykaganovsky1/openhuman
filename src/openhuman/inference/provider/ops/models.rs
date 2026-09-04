@@ -44,6 +44,39 @@ fn resolve_local_runtime_key(
     looked_up
 }
 
+/// Whether a configured provider endpoint can be probed over HTTP.
+///
+/// Scheme-anchored rather than a `contains` test: the only endpoints that can
+/// carry a `/models` listing are the ones reqwest will build a request for.
+fn endpoint_is_http(endpoint: &str) -> bool {
+    let endpoint = endpoint.trim().to_ascii_lowercase();
+    endpoint.starts_with("http://") || endpoint.starts_with("https://")
+}
+
+/// The models config already names for a provider that cannot be probed.
+///
+/// Only the legacy `default_model` field can hold one — there is no per-entry
+/// model table in `cloud_providers` — so this is usually empty, and an empty
+/// listing is the honest answer: the picker falls back to free-text entry
+/// rather than showing a failed probe.
+fn config_declared_models(
+    entry: &crate::openhuman::config::schema::cloud_providers::CloudProviderCreds,
+) -> Vec<ModelInfo> {
+    entry
+        .default_model
+        .as_deref()
+        .map(str::trim)
+        .filter(|m| !m.is_empty())
+        .map(|m| {
+            vec![ModelInfo {
+                id: m.to_string(),
+                owned_by: Some(entry.slug.clone()),
+                context_window: None,
+            }]
+        })
+        .unwrap_or_default()
+}
+
 pub async fn list_configured_models(
     provider_id: &str,
 ) -> Result<crate::rpc::RpcOutcome<serde_json::Value>, String> {
@@ -75,6 +108,32 @@ pub async fn list_configured_models_from_config(
         .cloned()
         .or_else(|| synthesize_local_runtime_entry(&provider_id, config))
         .ok_or_else(|| format!("no cloud provider with id or slug '{}' found", provider_id))?;
+
+    // A provider whose endpoint is not an HTTP(S) URL has no `/models`
+    // listing to probe. `claude-code` is the shipped case: its endpoint is the
+    // cosmetic `cli://claude-code` (the factory branch shells out to the
+    // `claude` CLI and never makes an HTTP call), so building
+    // `cli://claude-code/models` handed reqwest a URL it refuses and every
+    // model listing failed the RPC and logged at ERR. Answer from config
+    // instead — a listing with nothing to list is a successful empty listing,
+    // not a fault.
+    if !endpoint_is_http(&entry.endpoint) {
+        let models = config_declared_models(&entry);
+        log::debug!(
+            "[providers][list_models] slug={} endpoint={} is not http(s); skipping the /models probe and answering from config ({} model(s))",
+            entry.slug,
+            entry.endpoint,
+            models.len()
+        );
+        return Ok(crate::rpc::RpcOutcome::new(
+            serde_json::json!({ "models": models }),
+            vec![format!(
+                "{} has no HTTP model listing; {} model(s) from config",
+                entry.slug,
+                models.len()
+            )],
+        ));
+    }
 
     let looked_up =
         crate::openhuman::inference::provider::factory::lookup_key_for_slug(&entry.slug, config)

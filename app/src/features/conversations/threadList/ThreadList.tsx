@@ -263,7 +263,14 @@ export function ThreadList({
                     e.stopPropagation();
                     onStartEditTitle(thread.id);
                   }}
-                  aria-label={t('chat.editThreadTitle')}
+                  // Name the thread, not just the verb: every row carries the
+                  // same pair of icon buttons, so a bare "Edit thread title"
+                  // leaves a screen reader with N identical controls and no way
+                  // to tell which conversation each one acts on.
+                  aria-label={t('chat.renameThreadAria').replace(
+                    '{title}',
+                    resolveTitle(thread.id)
+                  )}
                   title={t('chat.editThreadTitle')}
                   // `hidden`, not `opacity-0`: an invisible-but-laid-out button
                   // would keep reserving the trailing slot the count badge now
@@ -286,6 +293,10 @@ export function ThreadList({
                     onRequestDelete(thread);
                   }}
                   className="hidden h-5 w-5 flex-none items-center justify-center rounded text-content-faint transition-colors hover:bg-surface/60 hover:text-coral-500 group-hover:inline-flex"
+                  aria-label={t('chat.deleteThreadAria').replace(
+                    '{title}',
+                    resolveTitle(thread.id)
+                  )}
                   title={t('chat.deleteThread')}>
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path

@@ -485,8 +485,12 @@ describe('MascotPanel — voice picker custom voice input (line 525)', () => {
   });
 });
 
-// ── Dual mascots + per-mascot voice (issue #4277) ────────────────────────────
-describe('MascotPanel — meeting duo (second mascot)', () => {
+// ── Removed "meeting duo" surface ───────────────────────────────────────────
+// Meetings left the product, so the second-mascot picker and the per-mascot
+// voice rows it gated are no longer rendered. The mascot slice keeps
+// `secondaryMascotId` / `mascotVoices` (persisted state is not migrated), so
+// these assert the UI is gone, not the state.
+describe('MascotPanel - meeting duo removed', () => {
   const yellow = manifestEntry('yellow', 'Yellow');
   const toshi = manifestEntry('toshi', 'Toshi');
 
@@ -496,78 +500,25 @@ describe('MascotPanel — meeting duo (second mascot)', () => {
     mockSynthesizeSpeech.mockResolvedValue(new Uint8Array(0));
   });
 
-  it('dispatches setSecondaryMascotId when a second mascot is picked', () => {
-    const { store } = renderPanel();
-    fireEvent.change(screen.getByTestId('mascot-secondary-select'), { target: { value: 'toshi' } });
-    expect(store.getState().mascot.secondaryMascotId).toBe('toshi');
-  });
-
-  it('clears the second mascot when None is selected', () => {
-    const store = buildStore();
-    store.dispatch(setSecondaryMascotId('toshi'));
-    renderPanel(store);
-    fireEvent.change(screen.getByTestId('mascot-secondary-select'), {
-      target: { value: '__none__' },
-    });
-    expect(store.getState().mascot.secondaryMascotId).toBeNull();
-  });
-
-  it('disables the primary mascot as a second-mascot option', () => {
-    const store = buildStore();
-    store.dispatch(setSelectedMascotId('yellow'));
-    renderPanel(store);
-    const primaryOption = screen
-      .getByTestId('mascot-secondary-select')
-      .querySelector('option[value="yellow"]') as HTMLOptionElement | null;
-    expect(primaryOption).not.toBeNull();
-    expect(primaryOption).toBeDisabled();
-  });
-
-  it('hides the duo picker when a custom GIF avatar is set', () => {
-    const store = buildStore();
-    store.dispatch(setCustomMascotGifUrl('https://example.com/avatar.gif'));
-    renderPanel(store);
+  it('does not render the second-mascot picker', () => {
+    renderPanel();
     expect(screen.queryByTestId('mascot-secondary-select')).not.toBeInTheDocument();
   });
 
-  it('dispatches setMascotVoice for the second mascot when its voice changes', () => {
+  it('does not render the per-mascot voice rows even when a duo is stored', () => {
     const store = buildStore();
     store.dispatch(setSelectedMascotId('yellow'));
     store.dispatch(setSecondaryMascotId('toshi'));
     renderPanel(store);
 
-    // The secondary voice row renders once a distinct duo mascot is set.
-    const select = screen.getByTestId('mascot-voice-secondary-select');
-    fireEvent.change(select, { target: { value: 'pNInz6obpgDQGcFmaJgB' } });
-
-    expect(store.getState().mascot.mascotVoices.toshi).toBe('pNInz6obpgDQGcFmaJgB');
+    expect(screen.queryByTestId('mascot-voice-primary-select')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mascot-voice-secondary-select')).not.toBeInTheDocument();
   });
 
-  it('dispatches setMascotVoice for the primary mascot when its voice changes', () => {
+  it('leaves the persisted secondary-mascot state untouched', () => {
     const store = buildStore();
-    store.dispatch(setSelectedMascotId('yellow'));
     store.dispatch(setSecondaryMascotId('toshi'));
     renderPanel(store);
-
-    const select = screen.getByTestId('mascot-voice-primary-select');
-    fireEvent.change(select, { target: { value: 'pNInz6obpgDQGcFmaJgB' } });
-
-    expect(store.getState().mascot.mascotVoices.yellow).toBe('pNInz6obpgDQGcFmaJgB');
-  });
-
-  it('clears a per-mascot voice via the row reset button', () => {
-    const store = buildStore();
-    store.dispatch(setSelectedMascotId('yellow'));
-    store.dispatch(setSecondaryMascotId('toshi'));
-    renderPanel(store);
-
-    // Seed an override, then reset it.
-    fireEvent.change(screen.getByTestId('mascot-voice-secondary-select'), {
-      target: { value: 'pNInz6obpgDQGcFmaJgB' },
-    });
-    expect(store.getState().mascot.mascotVoices.toshi).toBe('pNInz6obpgDQGcFmaJgB');
-
-    fireEvent.click(screen.getByTestId('mascot-voice-secondary-reset'));
-    expect(store.getState().mascot.mascotVoices.toshi).toBeUndefined();
+    expect(store.getState().mascot.secondaryMascotId).toBe('toshi');
   });
 });

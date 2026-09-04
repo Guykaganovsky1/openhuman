@@ -262,6 +262,17 @@ const SearchPanel = ({ embedded = false }: { embedded?: boolean }) => {
 
         {status.kind === 'loading' && <CenteredLoadingState label={t('common.loading')} />}
 
+        {/* A failed initial load leaves `settings` null, so the StatusLine
+            inside the block below never mounts — the panel used to render only
+            its description with no hint that anything went wrong. */}
+        {!settings && status.kind === 'error' && (
+          <StatusLine
+            saving={false}
+            error={`${t('settings.search.statusError')}: ${status.message}`}
+            savingLabel={t('settings.search.statusSaving')}
+          />
+        )}
+
         {settings && (
           <>
             <SearchPanelEngineList

@@ -185,3 +185,57 @@ fn check_memory_tree_db_errors_when_the_driver_could_not_count() {
         error_items[0].message
     );
 }
+
+/// Nothing in the product writes `daemon_state.json`, so its absence is the
+/// state of every install. Before this it produced a permanent Error in
+/// `doctor.report` on every machine.
+#[test]
+fn check_daemon_state_passes_when_no_state_file_exists() {
+    let tmp = TempDir::new().expect("tempdir");
+    let mut cfg = test_config_in(&tmp);
+    cfg.config_path = tmp.path().join("config.toml");
+
+    let mut items = vec![];
+    check_daemon_state(&cfg, &mut items);
+
+    assert_eq!(items.len(), 1, "expected one daemon item; got: {items:?}");
+    assert_eq!(items[0].category, "daemon");
+    assert_eq!(
+        items[0].severity,
+        Severity::Ok,
+        "an absent daemon state file is not a fault: {}",
+        items[0].message
+    );
+    assert!(
+        items[0].message.contains("not supervised"),
+        "the message must say why the check passed: {}",
+        items[0].message
+    );
+    assert!(
+        !items.iter().any(|i| i.severity == Severity::Error),
+        "no Error may be reported for an absent state file: {items:?}"
+    );
+}
+
+/// A state file that exists but cannot be parsed is a real fault — something
+/// wrote it — and must stay an Error.
+#[test]
+fn check_daemon_state_errors_on_a_malformed_state_file() {
+    let tmp = TempDir::new().expect("tempdir");
+    let mut cfg = test_config_in(&tmp);
+    cfg.config_path = tmp.path().join("config.toml");
+    std::fs::write(tmp.path().join("daemon_state.json"), b"{not json")
+        .expect("write malformed state file");
+
+    let mut items = vec![];
+    check_daemon_state(&cfg, &mut items);
+
+    assert_eq!(items.len(), 1, "expected one daemon item; got: {items:?}");
+    assert_eq!(items[0].category, "daemon");
+    assert_eq!(items[0].severity, Severity::Error);
+    assert!(
+        items[0].message.contains("invalid state JSON"),
+        "unexpected message: {}",
+        items[0].message
+    );
+}

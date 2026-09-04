@@ -1412,6 +1412,81 @@ describe('ChatRuntimeProvider — dedupe, proactive resolution, mid-turn invaria
         expect(matchingCalls).toHaveLength(1);
       });
     });
+
+    // U15: one failed turn persisted three identical agent error bubbles. The
+    // dedupe key used to include `error_type`, so several classifications of
+    // the SAME turn (same thread + request_id) each got through, and the
+    // `lastMsg` guard could not stop them — it reads Redux, which only updates
+    // after `addInferenceResponse` round-trips through `threadApi.appendMessage`,
+    // so back-to-back events all read the same stale transcript tail.
+    it('persists one error bubble when a single failed turn reports several error types', async () => {
+      const listeners = renderProvider();
+      const message = 'The model provider failed. Please try again.';
+
+      act(() => {
+        for (const errorType of ['provider_error', 'inference', 'network'] as const) {
+          listeners.onError?.({
+            thread_id: 't-err-one-turn',
+            request_id: 'r-same',
+            message,
+            error_type: errorType,
+            round: 0,
+          });
+        }
+      });
+
+      await waitFor(() =>
+        expect(threadApi.appendMessage).toHaveBeenCalledWith(
+          't-err-one-turn',
+          expect.objectContaining({ sender: 'agent', content: message })
+        )
+      );
+
+      const calls = vi
+        .mocked(threadApi.appendMessage)
+        .mock.calls.filter(call => call[0] === 't-err-one-turn');
+      expect(calls).toHaveLength(1);
+    });
+
+    // The flip side of the same key: a genuinely separate failed turn carries a
+    // distinct `request_id`, so its error must still reach the transcript.
+    it('still persists an error bubble for a later turn with a different request id', async () => {
+      const listeners = renderProvider();
+
+      act(() => {
+        listeners.onError?.({
+          thread_id: 't-err-two-turns',
+          request_id: 'r-first',
+          message: 'first failure',
+          error_type: 'inference',
+          round: 0,
+        });
+      });
+
+      await waitFor(() =>
+        expect(threadApi.appendMessage).toHaveBeenCalledWith(
+          't-err-two-turns',
+          expect.objectContaining({ content: 'first failure' })
+        )
+      );
+
+      act(() => {
+        listeners.onError?.({
+          thread_id: 't-err-two-turns',
+          request_id: 'r-second',
+          message: 'second failure',
+          error_type: 'inference',
+          round: 0,
+        });
+      });
+
+      await waitFor(() =>
+        expect(threadApi.appendMessage).toHaveBeenCalledWith(
+          't-err-two-turns',
+          expect.objectContaining({ content: 'second failure' })
+        )
+      );
+    });
   });
 
   // Live subagent activity (#1122) — the parent thread surfaces a

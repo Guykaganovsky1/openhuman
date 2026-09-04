@@ -29,6 +29,9 @@ use tinyagents_harness::{LangfuseAuth, LangfuseClient, LangfuseTraceConfig};
 use tinyflows::engine::GraphObservation as FlowObservation;
 
 use crate::api::config::effective_backend_api_url;
+use crate::openhuman::agent::progress_tracing::langfuse::{
+    environment_for_base, push_allowed, LANGFUSE_PUSH_ENVIRONMENTS,
+};
 use crate::openhuman::config::Config;
 use crate::openhuman::flows::FlowRunTrigger;
 use crate::openhuman::security::credentials::session_support::require_live_session_token;
@@ -138,10 +141,47 @@ fn to_exporter_observations(observations: &[FlowObservation]) -> Vec<GraphObserv
         .collect()
 }
 
+/// Emitted at most once per process by [`skip_push_for_environment`].
+static SKIP_LOGGED: std::sync::Once = std::sync::Once::new();
+
+/// Whether this flow-run push must be dropped because the resolved backend
+/// environment is not one Langfuse ingestion is enabled for.
+///
+/// The agent-turn exporter grew this gate (`agent::progress_tracing::langfuse`)
+/// and this path was missed, so every production flow run paid an
+/// authenticated round-trip to be answered `403 FEATURE_DISABLED` /
+/// `500` by the backend proxy. The environment classifier
+/// ([`environment_for_base`]) and the permitted set
+/// ([`LANGFUSE_PUSH_ENVIRONMENTS`]) are reused verbatim rather than restated —
+/// two copies of that list is how the two paths would drift apart.
+///
+/// Logged once per process at `info`, for the same reason the agent path does:
+/// this sits on the settle path of every flow run, a skip in production is the
+/// configured outcome rather than a fault, and a line per run would move the
+/// noise instead of removing it.
+fn skip_push_for_environment(url: &str, flow_id: &str) -> bool {
+    let environment = environment_for_base(url);
+    if push_allowed(environment) {
+        return false;
+    }
+    SKIP_LOGGED.call_once(|| {
+        tracing::info!(
+            target: LOG_TARGET,
+            flow_id = %flow_id,
+            "[flows] langfuse export disabled for environment {environment:?} \
+             (enabled in: {}) — flow traces stay local for the rest of this process",
+            LANGFUSE_PUSH_ENVIRONMENTS.join(", ")
+        );
+    });
+    true
+}
+
 /// Exports one settled flow run to Langfuse as a single trace. Best-effort:
 /// every failure path logs a `[flows]`-prefixed warning and returns — a
 /// Langfuse outage can never fail or delay-fail the run. No-op when
-/// `observability.share_usage_data` is off or there is nothing to send.
+/// `observability.share_usage_data` is off, when there is nothing to send, or
+/// when the resolved backend environment is not one Langfuse pushes are
+/// enabled for.
 pub async fn export_flow_run_trace(
     config: &Config,
     flow_name: &str,
@@ -176,6 +216,9 @@ pub async fn export_flow_run_trace(
             flow_id = %flow_id,
             "[flows] langfuse export skipped: could not resolve ingestion URL from backend host (got {url:?})"
         );
+        return;
+    }
+    if skip_push_for_environment(&url, flow_id) {
         return;
     }
     let token = match require_live_session_token(config) {

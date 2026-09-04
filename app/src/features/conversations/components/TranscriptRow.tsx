@@ -210,7 +210,9 @@ function TranscriptRowImpl({
             )}
             <MessageAction
               analyticsId="chat-message-copy"
-              label={t('chat.copyResponse')}
+              // A user turn is not a "response" — the same control sits on both
+              // sides of the transcript, so the label follows the sender.
+              label={msg.sender === 'user' ? t('chat.copyMessage') : t('chat.copyResponse')}
               onClick={() => onCopy(msg.id, parsedContent.text)}
               className={`absolute -top-1 ${
                 isAgentTextMode ? 'right-0' : msg.sender === 'user' ? '-left-8' : '-right-8'

@@ -748,6 +748,7 @@ const messages: TranslationMap = {
   'chat.startConversation': 'Démarre une conversation',
   'chat.regenerate': 'Régénérer',
   'chat.copyResponse': 'Copier la réponse',
+  'chat.copyMessage': 'Copier le message',
   'chat.citations': 'Citations',
   'chat.toolUsed': 'Outil utilisé',
   'scope.legacy': 'Hérité',
@@ -2395,9 +2396,11 @@ const messages: TranslationMap = {
   'chat.noThreads': "Aucun fil pour l'instant",
   'chat.noLabelThreads': 'Aucun fil « {label} »',
   'chat.deleteThread': 'Supprimer le fil',
+  'chat.deleteThreadAria': 'Supprimer la conversation {title}',
   'chat.deleteThreadConfirm': 'Es-tu sûr de vouloir supprimer « {title} » ?',
   'chat.untitledThread': 'Fil sans titre',
   'chat.editThreadTitle': 'Modifier le titre du fil',
+  'chat.renameThreadAria': 'Renommer la conversation {title}',
   'chat.hideSidebar': 'Masquer la barre latérale',
   'chat.showSidebar': 'Afficher la barre latérale',
   'chat.searchThreads': 'Rechercher des conversations',
@@ -2923,6 +2926,7 @@ const messages: TranslationMap = {
   'onboarding.skills.status.unavailable': 'Indisponible',
   'composio.statusUnavailable': 'État indisponible',
   'composio.authExpired': 'Authentification expirée',
+  'composio.authRevoked': 'Accès révoqué',
   'composio.reconnect': 'Reconnecter',
   'composio.expiredAuthorization': "L'autorisation {name} a expiré",
   'composio.expiredDescription':
@@ -3189,6 +3193,8 @@ const messages: TranslationMap = {
     'Choisissez une méthode ci-dessous : reliez votre compte via OpenHuman, installez le bot avec OAuth, ou collez votre propre jeton de bot depuis le portail développeur Discord.',
   'channels.connectHelp.telegram':
     'Choisissez une méthode ci-dessous : écrivez au bot OpenHuman géré pour le relier, ou collez votre propre jeton de bot depuis @BotFather.',
+  'channels.connectHelp.imessage':
+    "Aucun identifiant requis. OpenHuman lit la base de données locale de Messages : accordez-lui l'Accès complet au disque dans Réglages Système > Confidentialité et sécurité > Accès complet au disque, puis relancez l'app.",
   'channels.connectHelp.slackNote':
     'Vous cherchez Slack ? Slack se connecte comme une app dans Connexions → OAuth, pas comme un canal de messagerie ici.',
   'channels.web.displayName': 'Web',
@@ -4242,7 +4248,8 @@ const messages: TranslationMap = {
   'pages.settings.features.notifications': 'Notifications',
   'pages.settings.features.notificationsDesc': 'Description des notifications',
   'pages.settings.features.tools': 'Outils',
-  'pages.settings.features.toolsDesc': 'Description des outils',
+  'pages.settings.features.toolsDesc':
+    'Activez ou désactivez chaque outil de l’agent, regroupés par catégorie.',
   'pages.settings.featuresSection.title': 'Fonctionnalités',
   'privacy.dataKind.credentials': 'Identifiants',
   'privacy.dataKind.derived': 'Dérivé',
@@ -4325,7 +4332,7 @@ const messages: TranslationMap = {
   'rewards.coupon.subtitle': 'Sous-titre',
   'rewards.coupon.title': 'Échanger un code de coupon',
   'rewards.referralSection.activity': 'Activité de parrainage',
-  'rewards.referralSection.apply': 'Application…',
+  'rewards.referralSection.apply': 'Appliquer',
   'rewards.referralSection.applying': 'Application…',
   'rewards.referralSection.colReferredUser': 'Utilisateur parrainé',
   'rewards.referralSection.colReward': 'Récompense',

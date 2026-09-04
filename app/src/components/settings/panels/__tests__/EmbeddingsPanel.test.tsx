@@ -133,6 +133,19 @@ describe('EmbeddingsPanel', () => {
     expect(screen.getByText('Custom')).toBeInTheDocument();
   });
 
+  it('reports a passing connection test as tested, not as saved', async () => {
+    renderWithProviders(<EmbeddingsPanel />);
+    await screen.findByText('Managed');
+
+    fireEvent.click(screen.getByRole('button', { name: /Test Connection/i }));
+
+    await waitFor(() => expect(vi.mocked(testEmbeddingsConnection)).toHaveBeenCalled());
+    // "Test connection" persists nothing, so "Saved." was the wrong report.
+    await waitFor(() => expect(screen.getByText('Connected: 1536 dimensions')).toBeInTheDocument());
+    expect(screen.queryByText('Saved.')).not.toBeInTheDocument();
+    expect(vi.mocked(updateEmbeddingsSettings)).not.toHaveBeenCalled();
+  });
+
   it('marks Managed embeddings as requiring OpenHuman sign-in for local sessions', async () => {
     setCoreSession({ sessionToken: 'header.payload.local', userId: 'local', profileId: null });
 

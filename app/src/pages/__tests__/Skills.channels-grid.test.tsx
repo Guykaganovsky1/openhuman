@@ -245,6 +245,25 @@ describe('Skills page — Channels grid', () => {
     }
   );
 
+  it('closes an open channel setup sheet when the Connections tab changes', async () => {
+    // The sheet is a modal rendered outside the tab body, so switching tabs
+    // used to leave a Telegram setup dialog floating over the Apps grid.
+    renderWithProviders(<Skills />, { initialEntries: ['/connections'] });
+    fireEvent.click(screen.getByTestId('two-pane-nav-channels'));
+
+    const channelsCard = screen
+      .getByRole('heading', { name: 'Messaging' })
+      .closest('[data-slot="card"]') as HTMLElement;
+    fireEvent.click(
+      within(channelsCard).getByRole('button', { name: /Telegram.*Not configured.*Setup/i })
+    );
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('two-pane-nav-composio'));
+
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
   it('does not surface a Channels chip in the category filter inside the Integrations card', () => {
     renderWithProviders(<Skills />, { initialEntries: ['/connections'] });
     fireEvent.click(screen.getByTestId('two-pane-nav-composio'));

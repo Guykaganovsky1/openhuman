@@ -183,6 +183,75 @@ async fn export_is_a_noop_when_share_usage_data_is_off() {
     .await;
 }
 
+/// The flow exporter must obey the same environment allowlist the agent-turn
+/// exporter does. Without the gate a production install POSTed every settled
+/// flow run to the backend proxy, which answers an error there — an
+/// authenticated round-trip per run, to be told no.
+///
+/// Asserted on the predicate rather than on a captured request because the
+/// only environment a test may actually reach is loopback, which is
+/// `development` and therefore pushable: there is no way to observe "no
+/// request to production" without making one.
+#[test]
+fn push_is_skipped_outside_the_enabled_environments() {
+    let prod = "https://api.tinyhumans.ai/telemetry/langfuse/ingestion";
+    assert_eq!(environment_for_base(prod), "production");
+    assert!(
+        skip_push_for_environment(prod, "flow-1"),
+        "a production backend must not receive flow traces"
+    );
+
+    let staging = "https://staging-api.tinyhumans.ai/telemetry/langfuse/ingestion";
+    assert_eq!(environment_for_base(staging), "staging");
+    assert!(
+        !skip_push_for_environment(staging, "flow-1"),
+        "staging must still push"
+    );
+
+    let local = "http://127.0.0.1:7788/telemetry/langfuse/ingestion";
+    assert_eq!(environment_for_base(local), "development");
+    assert!(
+        !skip_push_for_environment(local, "flow-1"),
+        "a local backend must still push"
+    );
+}
+
+/// Ties the flow gate to the shared allowlist: if `LANGFUSE_PUSH_ENVIRONMENTS`
+/// gains or loses a bucket, this path follows it rather than keeping a copy.
+#[test]
+fn flow_gate_reads_the_shared_environment_allowlist() {
+    for environment in LANGFUSE_PUSH_ENVIRONMENTS {
+        assert!(
+            push_allowed(environment),
+            "{environment} is in the allowlist and must be pushable"
+        );
+    }
+    assert!(!push_allowed("production"));
+}
+
+/// A production install must return before resolving a session token or
+/// opening a connection.
+#[tokio::test]
+async fn export_is_a_noop_on_a_production_backend() {
+    let mut config = Config::default();
+    config.observability.share_usage_data = true;
+    config.api_url = Some("https://api.tinyhumans.ai/api/v1".to_string());
+    assert!(
+        skip_push_for_environment(&ingestion_url(&config), "flow-1"),
+        "the resolved production URL must fail the gate"
+    );
+    export_flow_run_trace(
+        &config,
+        "Daily digest",
+        "flow-1",
+        "flow:flow-1:uuid-1",
+        "completed",
+        FlowRunTrigger::Schedule,
+        &sample_observations("flow:flow-1:uuid-1"),
+    )
+    .await;
+}
+
 #[tokio::test]
 async fn export_with_empty_observations_is_a_noop() {
     let config = Config::default();

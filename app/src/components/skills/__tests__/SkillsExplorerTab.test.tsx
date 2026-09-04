@@ -77,6 +77,11 @@ const MOCK_DOCKER_ENTRY: CatalogEntry = {
   tags: ['docker', 'containers'],
 };
 
+/** Wrap a fixture list in the paged shape `skillRegistryApi.browse` now returns. */
+function catalogPage(entries: CatalogEntry[], total?: number) {
+  return { entries, total: total ?? entries.length };
+}
+
 async function switchToInstalled() {
   const installedTab = screen.getByRole('tab', { name: /Installed/i });
   await act(async () => {
@@ -116,7 +121,7 @@ describe('SkillsExplorerTab', () => {
     vi.mocked(skillRegistryApi.search).mockReset();
     vi.mocked(skillRegistryApi.install).mockReset();
     vi.mocked(skillRegistryApi.sources).mockReset();
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([]));
     vi.mocked(skillRegistryApi.search).mockResolvedValue([]);
     vi.mocked(skillRegistryApi.sources).mockResolvedValue([]);
   });
@@ -125,7 +130,7 @@ describe('SkillsExplorerTab', () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([MOCK_CATALOG_ENTRY]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([MOCK_CATALOG_ENTRY]));
 
     render(<SkillsExplorerTab />);
 
@@ -135,16 +140,26 @@ describe('SkillsExplorerTab', () => {
     expect(screen.getByText('built-in')).toBeInTheDocument();
   });
 
-  it('paginates the registry catalog via the Show more control', async () => {
+  // #U2: the catalog is ~90k entries, so "Show more" must ASK THE CORE for the
+  // next window. It used to slice a fully-downloaded list held in the renderer.
+  it('paginates the registry catalog by fetching the next page from the core', async () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    const entries: CatalogEntry[] = Array.from({ length: 130 }, (_, i) => ({
+    const entry = (i: number): CatalogEntry => ({
       ...MOCK_CATALOG_ENTRY,
       id: `paged-skill-${i}`,
       name: `Paged Skill ${i}`,
-    }));
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue(entries);
+    });
+    const pageOf = (offset: number, size: number) =>
+      catalogPage(
+        Array.from({ length: size }, (_, i) => entry(offset + i)),
+        130
+      );
+    vi.mocked(skillRegistryApi.browse).mockImplementation(async options => {
+      const offset = options?.offset ?? 0;
+      return pageOf(offset, Math.min(60, 130 - offset));
+    });
 
     const { container } = render(<SkillsExplorerTab />);
 
@@ -152,21 +167,29 @@ describe('SkillsExplorerTab', () => {
       expect(screen.getByText('Paged Skill 0')).toBeInTheDocument();
     });
 
-    const tileCount = () =>
-      container.querySelectorAll('[data-testid^="registry-tile-"]').length;
+    const tileCount = () => container.querySelectorAll('[data-testid^="registry-tile-"]').length;
 
-    // First page only: 60 of 130 revealed.
+    // Only the first server page is in the DOM — and only 60 rows crossed the wire.
     expect(tileCount()).toBe(60);
+    expect(skillRegistryApi.browse).toHaveBeenCalledWith(
+      expect.objectContaining({ offset: 0, limit: 60 })
+    );
 
     await act(async () => {
       fireEvent.click(screen.getByTestId('registry-show-more'));
     });
+    expect(skillRegistryApi.browse).toHaveBeenCalledWith(
+      expect.objectContaining({ offset: 60, limit: 60 })
+    );
     expect(tileCount()).toBe(120);
 
     await act(async () => {
       fireEvent.click(screen.getByTestId('registry-show-more'));
     });
-    // All 130 revealed → the control disappears.
+    expect(skillRegistryApi.browse).toHaveBeenCalledWith(
+      expect.objectContaining({ offset: 120, limit: 60 })
+    );
+    // All 130 of the server-reported total loaded → the control disappears.
     expect(tileCount()).toBe(130);
     expect(screen.queryByTestId('registry-show-more')).toBeNull();
   });
@@ -175,8 +198,11 @@ describe('SkillsExplorerTab', () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([MOCK_CATALOG_ENTRY]);
-    vi.mocked(skillRegistryApi.search).mockResolvedValue([MOCK_DOCKER_ENTRY]);
+    vi.mocked(skillRegistryApi.browse).mockImplementation(async options =>
+      options?.query === 'docker'
+        ? catalogPage([MOCK_DOCKER_ENTRY])
+        : catalogPage([MOCK_CATALOG_ENTRY])
+    );
 
     render(<SkillsExplorerTab />);
 
@@ -189,10 +215,13 @@ describe('SkillsExplorerTab', () => {
       fireEvent.change(searchInput, { target: { value: 'docker' } });
     });
 
-    // Wait for the debounce to fire and the RPC search to be called
+    // #U2: the search box drives a SERVER-side filter — the core is asked for
+    // one 60-row page matching the query, not the whole catalog.
     await waitFor(
       () => {
-        expect(skillRegistryApi.search).toHaveBeenCalledWith('docker', undefined);
+        expect(skillRegistryApi.browse).toHaveBeenCalledWith(
+          expect.objectContaining({ query: 'docker', offset: 0, limit: 60 })
+        );
       },
       { timeout: 2000 }
     );
@@ -347,7 +376,7 @@ describe('SkillsExplorerTab', () => {
       location: '/Users/test/.openhuman/skills/apple-notes/SKILL.md',
     };
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([installedSkill]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([catalogEntry]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([catalogEntry]));
 
     render(<SkillsExplorerTab />);
 
@@ -386,7 +415,7 @@ describe('SkillsExplorerTab', () => {
       location: '/Users/test/.openhuman/skills/apple-notes-copy/SKILL.md',
     };
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([unrelatedInstalledSkill]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([catalogEntry]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([catalogEntry]));
 
     render(<SkillsExplorerTab />);
 
@@ -411,7 +440,7 @@ describe('SkillsExplorerTab', () => {
     // The installed list never resolves to anything that maps back to the entry
     // (simulates a post-install id/location the heuristic can't match).
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([catalogEntry]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([catalogEntry]));
     vi.mocked(skillRegistryApi.install).mockResolvedValue({
       url: '',
       stdout: '',
@@ -510,7 +539,7 @@ describe('SkillsExplorerTab', () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([MOCK_CATALOG_ENTRY_WITH_META]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([MOCK_CATALOG_ENTRY_WITH_META]));
 
     render(<SkillsExplorerTab />);
 
@@ -569,7 +598,7 @@ describe('SkillsExplorerTab', () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([MOCK_CATALOG_ENTRY]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([MOCK_CATALOG_ENTRY]));
 
     render(<SkillsExplorerTab />);
 
@@ -598,7 +627,7 @@ describe('SkillsExplorerTab', () => {
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     const onToast = vi.fn();
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([MOCK_CATALOG_ENTRY]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([MOCK_CATALOG_ENTRY]));
     vi.mocked(skillRegistryApi.install).mockResolvedValue({
       url: 'https://example.com/SKILL.md',
       stdout: 'ok',
@@ -629,7 +658,7 @@ describe('SkillsExplorerTab', () => {
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     const onToast = vi.fn();
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([MOCK_CATALOG_ENTRY]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([MOCK_CATALOG_ENTRY]));
     vi.mocked(skillRegistryApi.install).mockRejectedValue(new Error('Install failed'));
 
     render(<SkillsExplorerTab onToast={onToast} />);
@@ -653,7 +682,7 @@ describe('SkillsExplorerTab', () => {
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
     vi.mocked(skillRegistryApi.sources).mockResolvedValue(['built-in', 'ClawHub']);
     // No catalog entries so "built-in" only appears in the toggle buttons
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([]));
 
     render(<SkillsExplorerTab />);
 
@@ -667,13 +696,12 @@ describe('SkillsExplorerTab', () => {
     expect(screen.getByRole('menuitem', { name: /ClawHub/i })).toBeInTheDocument();
   });
 
-  it('deselecting a source filter triggers search with single active source', async () => {
+  it('deselecting a source filter refetches page 1 with the remaining sources', async () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
     vi.mocked(skillRegistryApi.sources).mockResolvedValue(['built-in', 'ClawHub']);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.search).mockResolvedValue([]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([]));
 
     render(<SkillsExplorerTab />);
 
@@ -689,7 +717,9 @@ describe('SkillsExplorerTab', () => {
     });
 
     await waitFor(() => {
-      expect(skillRegistryApi.search).toHaveBeenCalledWith('', 'built-in');
+      expect(skillRegistryApi.browse).toHaveBeenCalledWith(
+        expect.objectContaining({ sources: ['built-in'], offset: 0, limit: 60 })
+      );
     });
   });
 
@@ -697,7 +727,7 @@ describe('SkillsExplorerTab', () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([MOCK_CATALOG_ENTRY, MOCK_DOCKER_ENTRY]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([MOCK_CATALOG_ENTRY, MOCK_DOCKER_ENTRY]));
 
     render(<SkillsExplorerTab />);
 
@@ -757,7 +787,7 @@ describe('SkillsExplorerTab', () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([]));
 
     render(<SkillsExplorerTab />);
 
@@ -773,7 +803,7 @@ describe('SkillsExplorerTab', () => {
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
     vi.mocked(skillRegistryApi.browse)
       .mockRejectedValueOnce(new Error('timeout'))
-      .mockResolvedValue([MOCK_CATALOG_ENTRY]);
+      .mockResolvedValue(catalogPage([MOCK_CATALOG_ENTRY]));
 
     render(<SkillsExplorerTab />);
 
@@ -816,7 +846,7 @@ describe('SkillsExplorerTab', () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([MOCK_CATALOG_ENTRY]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([MOCK_CATALOG_ENTRY]));
 
     render(<SkillsExplorerTab />);
 
@@ -834,10 +864,10 @@ describe('SkillsExplorerTab', () => {
     await waitFor(() => {
       expect(vi.mocked(skillRegistryApi.browse).mock.calls.length).toBeGreaterThan(callsBefore);
     });
-    // The last browse call should use forceRefresh=true
+    // The last browse call should force-refresh and restart from page 1.
     const calls = vi.mocked(skillRegistryApi.browse).mock.calls;
     const lastCall = calls[calls.length - 1];
-    expect(lastCall[0]).toBe(true);
+    expect(lastCall[0]).toMatchObject({ forceRefresh: true, offset: 0, limit: 60 });
   });
 
   it('sorts hermes skills before non-hermes in installed view', async () => {
@@ -875,7 +905,7 @@ describe('SkillsExplorerTab', () => {
     const { skillsApi } = await import('../../../services/api/skillsApi');
     const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([MOCK_CATALOG_ENTRY]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([MOCK_CATALOG_ENTRY]));
 
     render(<SkillsExplorerTab />);
 
@@ -897,7 +927,7 @@ describe('SkillsExplorerTab', () => {
     const onToast = vi.fn();
     vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
     // Override the beforeEach mock so browse returns an entry
-    vi.mocked(skillRegistryApi.browse).mockResolvedValue([MOCK_CATALOG_ENTRY]);
+    vi.mocked(skillRegistryApi.browse).mockResolvedValue(catalogPage([MOCK_CATALOG_ENTRY]));
     vi.mocked(skillRegistryApi.install).mockResolvedValue({
       url: 'https://example.com/SKILL.md',
       stdout: 'ok',

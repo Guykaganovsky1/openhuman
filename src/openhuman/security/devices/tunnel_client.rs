@@ -24,14 +24,79 @@ pub struct TunnelRegisterPayload {
 }
 
 /// Response from the `tunnel:register` ACK callback.
+///
+/// Shape per `gitbooks/developing/architecture.md` and this domain's README:
+/// `{channelId, pairingToken, pairingExpiresAt}`. The SDK
+/// (`vendor/tinyhumans-sdk`) declares the *event names* for the tunnel surface
+/// (`socket::events::outbound::TUNNEL_REGISTER`) but no ack type, so those two
+/// documents are the only source for the field names and they are kept as-is.
 #[derive(Debug, Clone, Deserialize)]
 pub struct TunnelRegisterResponse {
     #[serde(rename = "channelId")]
     pub channel_id: String,
     #[serde(rename = "pairingToken")]
     pub pairing_token: String,
-    #[serde(rename = "pairingExpiresAt")]
+    /// ISO 8601 expiry. Accepts an epoch-millis integer too — see
+    /// [`deserialize_pairing_expires_at`].
+    #[serde(
+        rename = "pairingExpiresAt",
+        deserialize_with = "deserialize_pairing_expires_at"
+    )]
     pub pairing_expires_at: String,
+}
+
+/// Deserialize `pairingExpiresAt` from either a string or an epoch-millis
+/// integer, always yielding the ISO 8601 string the rest of the flow expects.
+///
+/// The live backend has been observed sending the integer form: the ack failed
+/// to decode with `invalid type: integer 1788441492159, expected a string`,
+/// which killed the whole pairing. Everything downstream treats this as an ISO
+/// string — `types::PairingSession::expires_at` documents it as one, and
+/// `PairPhoneModal.tsx` does `new Date(session.expires_at)` to build the QR's
+/// `exp` field — so the integer is normalised here rather than widening the
+/// type through four structs and the RPC surface.
+///
+/// An integer is read as **milliseconds**, which is the only form observed
+/// (13 digits). A value outside the representable range is a decode error
+/// rather than a silently wrong timestamp.
+fn deserialize_pairing_expires_at<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum RawExpiry {
+        Text(String),
+        EpochMillis(i64),
+    }
+
+    match RawExpiry::deserialize(deserializer)? {
+        RawExpiry::Text(text) => Ok(text),
+        RawExpiry::EpochMillis(ms) => chrono::DateTime::from_timestamp_millis(ms)
+            .map(|dt| dt.to_rfc3339())
+            .ok_or_else(|| {
+                serde::de::Error::custom(format!(
+                    "pairingExpiresAt epoch-millis value out of range: {ms}"
+                ))
+            }),
+    }
+}
+
+/// Names the shape of an ack for a log line **without disclosing any value** —
+/// the ack carries a single-use pairing token, so only top-level keys (or the
+/// JSON type, when it is not an object) may be logged.
+fn describe_ack_shape(ack: &serde_json::Value) -> String {
+    match ack {
+        serde_json::Value::Object(map) => {
+            let keys: Vec<&str> = map.keys().map(String::as_str).collect();
+            format!("object keys=[{}]", keys.join(", "))
+        }
+        serde_json::Value::Array(items) => format!("array len={}", items.len()),
+        serde_json::Value::String(_) => "string".to_string(),
+        serde_json::Value::Number(_) => "number".to_string(),
+        serde_json::Value::Bool(_) => "bool".to_string(),
+        serde_json::Value::Null => "null".to_string(),
+    }
 }
 
 /// Payload emitted as `tunnel:connect` to join a channel.
@@ -87,8 +152,20 @@ pub async fn emit_register() -> Result<TunnelRegisterResponse, String> {
         .await
         .map_err(|e| format!("[devices/tunnel] emit tunnel:register failed: {e}"))?;
 
-    serde_json::from_value::<TunnelRegisterResponse>(ack)
-        .map_err(|e| format!("[devices/tunnel] parse tunnel:register ack failed: {e}"))
+    // Diagnose a decode failure with the ack's *shape* only. This ack has no
+    // HTTP status (it is a Socket.IO acknowledgement, not a response), and its
+    // body carries the single-use pairing token, so the keys and the encoded
+    // length are everything that may be logged. Both field-shape failures seen
+    // in the field — an integer `pairingExpiresAt` and a `channelId` that was
+    // absent entirely — were undiagnosable from the bare serde message alone.
+    let shape = describe_ack_shape(&ack);
+    let encoded_len = ack.to_string().len();
+    serde_json::from_value::<TunnelRegisterResponse>(ack).map_err(|e| {
+        log::warn!(
+            "[devices/tunnel] tunnel:register ack did not decode: {e} ({shape}, encoded_bytes={encoded_len})"
+        );
+        format!("[devices/tunnel] parse tunnel:register ack failed: {e} ({shape})")
+    })
 }
 
 /// Emit `tunnel:connect` to start listening on a channel as `role:"core"`.

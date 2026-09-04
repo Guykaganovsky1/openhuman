@@ -117,8 +117,16 @@ export default function AgentActivityPanel() {
             </div>
           )}
 
-          {/* Level selection cards — intentional bespoke card UI; kept as-is. */}
-          <div className="flex flex-col gap-2">
+          {/* Level selection cards — intentional bespoke card UI; kept as-is.
+              Semantically these are a single-choice group, so the container is
+              a `radiogroup` and each card a `radio` carrying `aria-checked`.
+              They stay real `<button>`s, so Enter/Space activation, focus and
+              disabled handling come from the platform rather than a hand-rolled
+              key handler. */}
+          <div
+            role="radiogroup"
+            aria-label={t('activityLevel.title')}
+            className="flex flex-col gap-2">
             {LEVELS.map(({ key, value }) => {
               const isSelected = settings?.level === value;
               const apiKey = key === 'alwaysOn' ? 'always_on' : (key as string);
@@ -128,6 +136,8 @@ export default function AgentActivityPanel() {
                 <Button
                   key={key}
                   variant="secondary"
+                  role="radio"
+                  aria-checked={isSelected}
                   onClick={() => handleLevelChange(apiKey)}
                   disabled={status === 'saving'}
                   data-testid={`activity-level-${key}`}

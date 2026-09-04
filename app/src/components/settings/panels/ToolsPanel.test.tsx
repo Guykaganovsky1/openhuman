@@ -69,6 +69,34 @@ describe('<ToolsPanel />', () => {
     );
   });
 
+  it('keeps an unsaved toggle when a new core snapshot arrives', async () => {
+    const { rerender } = render(<ToolsPanel />);
+
+    const shellToggle = screen.getByRole('switch', { name: /Shell Commands/ });
+    await waitFor(() => expect(shellToggle).toHaveAttribute('aria-checked', 'true'));
+
+    fireEvent.click(shellToggle);
+    expect(shellToggle).toHaveAttribute('aria-checked', 'false');
+
+    // An unrelated app-state snapshot lands while the change is still unsaved.
+    // It carries the OLD value, and a fresh array identity, so the init effect
+    // re-runs — it must not clobber the pending toggle.
+    mocks.useCoreStateMock.mockReturnValue(coreState(['shell']));
+    rerender(<ToolsPanel />);
+
+    expect(screen.getByRole('switch', { name: /Shell Commands/ })).toHaveAttribute(
+      'aria-checked',
+      'false'
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await waitFor(() =>
+      expect(mocks.setOnboardingTasks).toHaveBeenCalledWith(
+        expect.objectContaining({ enabledTools: [] })
+      )
+    );
+  });
+
   it('renders the panel header description when embedded=false (line 110)', () => {
     // Default embedded=false shows the header description
     render(<ToolsPanel embedded={false} />);

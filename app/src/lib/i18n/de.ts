@@ -749,6 +749,7 @@ const messages: TranslationMap = {
   'chat.startConversation': 'Beginne ein Gespräch',
   'chat.regenerate': 'Regenerieren',
   'chat.copyResponse': 'Antwort kopieren',
+  'chat.copyMessage': 'Nachricht kopieren',
   'chat.citations': 'Zitate',
   'chat.toolUsed': 'Werkzeug verwendet',
   'scope.legacy': 'Vermächtnis',
@@ -2395,9 +2396,11 @@ const messages: TranslationMap = {
   'chat.noThreads': 'Noch keine Threads',
   'chat.noLabelThreads': 'Keine „{label}“-Threads',
   'chat.deleteThread': 'Thread löschen',
+  'chat.deleteThreadAria': 'Unterhaltung {title} löschen',
   'chat.deleteThreadConfirm': 'Bist du sicher, dass du „{title}“ löschen möchtest?',
   'chat.untitledThread': 'Thread ohne Titel',
   'chat.editThreadTitle': 'Thread-Titel bearbeiten',
+  'chat.renameThreadAria': 'Unterhaltung {title} umbenennen',
   'chat.hideSidebar': 'Seitenleiste ausblenden',
   'chat.showSidebar': 'Seitenleiste anzeigen',
   'chat.searchThreads': 'Unterhaltungen suchen',
@@ -2926,6 +2929,7 @@ const messages: TranslationMap = {
   'onboarding.skills.status.unavailable': 'Nicht verfügbar',
   'composio.statusUnavailable': 'Status nicht verfügbar',
   'composio.authExpired': 'Authentifizierung abgelaufen',
+  'composio.authRevoked': 'Zugriff widerrufen',
   'composio.reconnect': 'Wieder verbinden',
   'composio.expiredAuthorization': '{name}-Autorisierung abgelaufen',
   'composio.expiredDescription':
@@ -3197,6 +3201,8 @@ const messages: TranslationMap = {
     'Wähle unten eine Methode: verknüpfe dein Konto über OpenHuman, installiere den Bot per OAuth oder füge deinen eigenen Bot-Token aus dem Discord-Entwicklerportal ein.',
   'channels.connectHelp.telegram':
     'Wähle unten eine Methode: schreibe dem verwalteten OpenHuman-Bot, um ihn zu verknüpfen, oder füge deinen eigenen Bot-Token von @BotFather ein.',
+  'channels.connectHelp.imessage':
+    'Keine Zugangsdaten nötig. OpenHuman liest die lokale Nachrichten-Datenbank; erteile ihm daher unter Systemeinstellungen > Datenschutz & Sicherheit > Festplattenvollzugriff die Berechtigung und starte die App neu.',
   'channels.connectHelp.slackNote':
     'Du suchst Slack? Slack wird als App unter Verbindungen → OAuth verbunden, nicht als Messaging-Kanal hier.',
   'channels.web.displayName': 'Web',
@@ -4259,7 +4265,8 @@ const messages: TranslationMap = {
   'pages.settings.features.notifications': 'Benachrichtigungen',
   'pages.settings.features.notificationsDesc': 'Benachrichtigungen absch',
   'pages.settings.features.tools': 'Werkzeuge',
-  'pages.settings.features.toolsDesc': 'Werkzeugbeschr',
+  'pages.settings.features.toolsDesc':
+    'Einzelne Agent-Tools ein- oder ausschalten, nach Kategorie gruppiert.',
   'pages.settings.featuresSection.title': 'Funktionen',
   'privacy.dataKind.credentials': 'Anmeldeinformationen',
   'privacy.dataKind.derived': 'Abgeleitet',
@@ -4344,7 +4351,7 @@ const messages: TranslationMap = {
   'rewards.coupon.subtitle': 'Untertitel',
   'rewards.coupon.title': 'Gutscheincode einlösen',
   'rewards.referralSection.activity': 'Empfehlungsaktivität',
-  'rewards.referralSection.apply': 'Bewerben…',
+  'rewards.referralSection.apply': 'Anwenden',
   'rewards.referralSection.applying': 'Bewerben…',
   'rewards.referralSection.colReferredUser': 'Empfohlener Benutzer',
   'rewards.referralSection.colReward': 'Belohnung',

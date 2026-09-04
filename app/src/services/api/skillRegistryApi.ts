@@ -17,28 +17,37 @@ const log = debug('skillRegistryApi');
 const CATALOG_RPC_TIMEOUT_MS = 120_000;
 
 /**
- * In-memory, session-scoped cache for the unfiltered `browse()` catalog.
+ * `browse()` is PAGED and filtered server-side.
  *
- * The backend already single-flights the upstream ~90k-entry fetch, so warm
- * backend reads are fast — but the FRONTEND still re-pulls and re-parses that
- * whole payload (tens of MB) over RPC on every Skills-page mount, which is the
- * recurring slowness users feel when clicking around. Holding the parsed result
- * here makes repeat visits within a session instant and de-dupes concurrent
- * mounts via a shared in-flight promise.
+ * It used to take only `force_refresh` and return the entire catalog — measured
+ * at 90,696 entries / ~39 MB per call — which the UI then searched and paged
+ * client-side, so every cache miss re-pulled and re-parsed the whole payload
+ * over RPC (renderer heap ~188 MB after one load). A module-level copy of that
+ * array was kept here to soften repeat visits, which traded the re-pull for
+ * holding tens of MB resident for the session.
  *
- * Deliberately NOT persisted to localStorage: the payload far exceeds the ~5MB
- * quota, so a cold restart re-fetches (and the backend serves it warm). A TTL
- * bounds staleness for very long-lived sessions; `force_refresh` and
- * `invalidateSkillBrowseCache()` both drop it on demand.
+ * Now `query`, `sources`, `offset` and `limit` go to the core, which does the
+ * filtering and returns one window plus `total`. A page of 60 rows is small
+ * enough that no frontend cache is worth its memory, so there is none: each
+ * call is one RPC for one page. `limit` is clamped core-side (200 max);
+ * omitting it still returns everything, which is what keeps non-UI callers of
+ * `skill_registry_browse` working unchanged.
  */
-const BROWSE_CACHE_TTL_MS = 30 * 60 * 1000;
-let browseCache: { fetchedAt: number; entries: CatalogEntry[] } | null = null;
-let browseInflight: Promise<CatalogEntry[]> | null = null;
+export interface BrowseCatalogOptions {
+  /** Case-insensitive substring over name/description/tags/category/author. */
+  query?: string;
+  /** Restrict to these upstream sources. Omit or pass [] for no filter. */
+  sources?: string[];
+  offset?: number;
+  limit?: number;
+  /** Re-fetch the catalog from upstream before answering (server-side refresh). */
+  forceRefresh?: boolean;
+}
 
-/** Drop the in-memory browse cache (e.g. after an install changes the list). */
-export function invalidateSkillBrowseCache(): void {
-  browseCache = null;
-  browseInflight = null;
+export interface CatalogPage {
+  entries: CatalogEntry[];
+  /** Matches before paging. Falls back to the page length on a legacy reply. */
+  total: number;
 }
 
 export interface CatalogEntry {
@@ -105,45 +114,33 @@ function unwrap<T>(response: Envelope<T> | T): T {
 }
 
 export const skillRegistryApi = {
-  browse: async (forceRefresh = false): Promise<CatalogEntry[]> => {
-    log('browse: forceRefresh=%s', forceRefresh);
-    if (forceRefresh) {
-      // Explicit refresh: drop any cache / in-flight join so we hit the backend.
-      invalidateSkillBrowseCache();
-    } else {
-      if (browseCache && Date.now() - browseCache.fetchedAt < BROWSE_CACHE_TTL_MS) {
-        log('browse: served from in-memory cache count=%d', browseCache.entries.length);
-        return browseCache.entries;
-      }
-      // Concurrent mounts share a single fetch instead of each firing the RPC.
-      if (browseInflight) {
-        log('browse: joining in-flight request');
-        return browseInflight;
-      }
-    }
-
-    const fetchPromise = (async () => {
-      const response = await callCoreRpc<
-        Envelope<{ entries: CatalogEntry[] }> | { entries: CatalogEntry[] }
-      >({
-        method: 'openhuman.skill_registry_browse',
-        params: { force_refresh: forceRefresh },
-        timeoutMs: CATALOG_RPC_TIMEOUT_MS,
-      });
-      const result = unwrap(response);
-      log('browse: count=%d', result.entries.length);
-      browseCache = { fetchedAt: Date.now(), entries: result.entries };
-      return result.entries;
-    })();
-
-    browseInflight = fetchPromise;
-    try {
-      return await fetchPromise;
-    } finally {
-      // Only clear the slot if it's still ours (a concurrent invalidate may have
-      // already reset it).
-      if (browseInflight === fetchPromise) browseInflight = null;
-    }
+  browse: async (options: BrowseCatalogOptions = {}): Promise<CatalogPage> => {
+    const { query, sources, offset, limit, forceRefresh = false } = options;
+    log(
+      'browse: query=%s sources=%o offset=%s limit=%s forceRefresh=%s',
+      query,
+      sources,
+      offset,
+      limit,
+      forceRefresh
+    );
+    type RawPage = { entries: CatalogEntry[]; total?: number };
+    const response = await callCoreRpc<Envelope<RawPage> | RawPage>({
+      method: 'openhuman.skill_registry_browse',
+      params: {
+        force_refresh: forceRefresh,
+        ...(query ? { query } : {}),
+        ...(sources && sources.length > 0 ? { sources } : {}),
+        ...(offset !== undefined ? { offset } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+      },
+      timeoutMs: CATALOG_RPC_TIMEOUT_MS,
+    });
+    const result = unwrap(response);
+    const entries = result.entries ?? [];
+    const total = result.total ?? entries.length;
+    log('browse: count=%d total=%d', entries.length, total);
+    return { entries, total };
   },
 
   search: async (query: string, source?: string, category?: string): Promise<CatalogEntry[]> => {

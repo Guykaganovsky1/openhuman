@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { requestUsageRefresh } from '../usageRefresh';
 import {
+  __resetEmbeddingSettingsShareForTests,
   EMBEDDING_BUDGET_URGENT_PCT,
   EMBEDDING_BUDGET_WARN_PCT,
   embeddingBudgetLevel,
@@ -148,6 +149,40 @@ describe('useEmbeddingBudgetState provider refresh', () => {
 
     // The other direction: a user switching ONTO managed embeddings starts
     // being warned without waiting for a remount.
+    requestUsageRefresh();
+    await vi.waitFor(() => expect(mockLoadEmbeddingsSettings).toHaveBeenCalledTimes(2));
+  });
+});
+
+// ── NoticeCenter mounts two consumers, so every read went out twice ─────────
+
+describe('useEmbeddingBudgetState shared provider read', () => {
+  beforeEach(() => {
+    mockLoadEmbeddingsSettings.mockReset();
+    mockGetTeamUsage.mockReset();
+    __resetEmbeddingSettingsShareForTests();
+    defaultMocks();
+  });
+
+  it('collapses two simultaneous consumers onto a single settings read', async () => {
+    mockLoadEmbeddingsSettings.mockResolvedValue({ provider: 'openhuman' });
+
+    // NoticeCenter calls the hook twice on the same tick (`useAppNotices` and
+    // `useEmbeddingBudgetNativeNotice`), which sent the RPC as a duplicate pair.
+    const { result } = renderHook(() => {
+      useEmbeddingBudgetState();
+      return useEmbeddingBudgetState();
+    });
+
+    await vi.waitFor(() => expect(result.current.isManagedEmbeddings).toBe(true));
+    expect(mockLoadEmbeddingsSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it('still re-reads once the previous read has settled (shares, never caches)', async () => {
+    mockLoadEmbeddingsSettings.mockResolvedValue({ provider: 'ollama' });
+    renderHook(() => useEmbeddingBudgetState());
+    await vi.waitFor(() => expect(mockLoadEmbeddingsSettings).toHaveBeenCalledTimes(1));
+
     requestUsageRefresh();
     await vi.waitFor(() => expect(mockLoadEmbeddingsSettings).toHaveBeenCalledTimes(2));
   });

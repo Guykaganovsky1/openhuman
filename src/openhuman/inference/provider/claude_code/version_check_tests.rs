@@ -146,3 +146,117 @@ fn a_timed_out_login_shell_is_killed_not_merely_abandoned() {
         .success();
     assert!(!alive, "shell pid {pid} survived the timeout");
 }
+
+/// K2: the flags are the whole reason this fallback finds anything.
+///
+/// `-i` is what makes zsh read `.zshrc` and bash read `.bashrc`, which is where
+/// nvm/mise/asdf install their init — drop it and the probe silently misses
+/// exactly the layouts it exists to cover, while still compiling and still
+/// returning `None` on every machine. So assert the argv the shell actually
+/// receives, not the argv the source appears to pass.
+#[cfg(unix)]
+#[test]
+fn the_login_shell_is_asked_as_an_interactive_login_shell() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let argv_file = dir.path().join("argv");
+    // The probe discards anything that is not an existing file, so the fake
+    // shell must answer with a real path for the success arm to be exercised.
+    let resolved = dir.path().join("claude");
+    std::fs::write(&resolved, "#!/bin/sh\n").expect("write claude");
+
+    let shell = dir.path().join("recording-shell");
+    std::fs::write(
+        &shell,
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > {}\necho {}\n",
+            argv_file.display(),
+            resolved.display()
+        ),
+    )
+    .expect("write shell");
+    std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o755)).expect("chmod shell");
+
+    let found =
+        super::login_shell_lookup_with(shell.to_str().expect("utf8 path"), Duration::from_secs(10));
+    assert_eq!(found.as_deref(), Some(resolved.as_path()));
+
+    let argv = std::fs::read_to_string(&argv_file).expect("shell recorded its argv");
+    assert_eq!(
+        argv.lines().collect::<Vec<_>>(),
+        vec!["-lic", "command -v claude"],
+        "the probe must ask an interactive login shell"
+    );
+}
+
+/// K3: the bound must reap the whole tree, not just the shell.
+///
+/// An rc file that backgrounds anything — and `-i` means rc files run — leaves
+/// a grandchild that `Child::kill` never touches. Reparented to init, it
+/// outlives the app that spawned it. The fake rc records the background pid so
+/// this asserts the process is really gone rather than asserting code shape.
+#[cfg(unix)]
+#[test]
+fn a_timed_out_login_shell_takes_its_grandchildren_with_it() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let child_pid_file = dir.path().join("child.pid");
+    let shell = dir.path().join("backgrounding-shell");
+    std::fs::write(
+        &shell,
+        format!(
+            "#!/bin/sh\nsleep 30 &\necho $! > {}\nsleep 30\n",
+            child_pid_file.display()
+        ),
+    )
+    .expect("write shell");
+    std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o755)).expect("chmod shell");
+
+    // Same reason as the test above: read the pid BEFORE the budget expires,
+    // otherwise a shell killed early never writes one and the test fails for a
+    // reason that is not the defect.
+    let shell_path = shell.to_str().expect("utf8 path").to_string();
+    let probe = std::thread::spawn(move || {
+        super::login_shell_lookup_with(&shell_path, Duration::from_secs(2))
+    });
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let grandchild = loop {
+        if let Ok(raw) = std::fs::read_to_string(&child_pid_file) {
+            if let Ok(pid) = raw.trim().parse::<i32>() {
+                break pid;
+            }
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the rc file never recorded its background pid"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    };
+
+    assert_eq!(
+        probe.join().expect("probe thread"),
+        None,
+        "a blocking shell resolves nothing"
+    );
+
+    let gone_by = std::time::Instant::now() + Duration::from_secs(1);
+    loop {
+        let alive = std::process::Command::new("kill")
+            .args(["-0", &grandchild.to_string()])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .expect("run kill -0")
+            .success();
+        if !alive {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < gone_by,
+            "grandchild pid {grandchild} outlived the probe as an orphan"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}

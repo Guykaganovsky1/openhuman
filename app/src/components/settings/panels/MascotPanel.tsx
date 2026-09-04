@@ -45,7 +45,6 @@ import {
   ELEVENLABS_VOICE_PRESETS,
   isCuratedVoicePreset,
 } from './elevenlabsVoicePresets';
-import PerMascotVoiceRow from './PerMascotVoiceRow';
 
 interface ColorOption {
   id: MascotColor;
@@ -158,14 +157,11 @@ const MascotPanel = ({ embedded = false }: MascotPanelProps) => {
     if (id != null && id === secondaryMascotId) dispatch(setSecondaryMascotId(null));
   };
 
-  // ── Second-mascot picker (issue #4277) ───────────────────────────
-  // Enable / clear the meeting duo's second mascot. `null` (the "None"
-  // option) drops back to single-mascot. Picking the primary's id is
-  // disabled in the dropdown, so this only ever dispatches a distinct id
-  // or null.
-  const handleSelectSecondaryMascot = (id: string | null) => {
-    dispatch(setSecondaryMascotId(id));
-  };
+  // The second-mascot ("meeting duo") picker and the per-mascot voice rows it
+  // gated are no longer rendered: meetings were removed from the product, so
+  // the duo had nothing left to appear in. The slice fields
+  // (`secondaryMascotId`, `mascotVoices`) and their persisted values are kept
+  // untouched — only the UI is gone.
 
   const onSaveCustomGif = () => {
     avatarWriteIdRef.current += 1;
@@ -816,81 +812,11 @@ const MascotPanel = ({ embedded = false }: MascotPanelProps) => {
         </p>
       </div>
 
-      {/* ── Meeting duo: second mascot + per-mascot voices (issue #4277) ─
-          Only meaningful for manifest mascots — a custom GIF avatar is a
-          single-figure path, so the whole block hides while one is set. */}
-      {manifest && manifest.mascots.length > 0 && !customMascotGifUrl && (
-        <div>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-content-faint mb-2 px-1">
-            {t('settings.mascot.secondaryHeading')}
-          </h3>
-
-          {/* Second-mascot picker — bespoke label + select combo mirroring
-              the voice preset dropdown. The primary's id is disabled so the
-              duo can never duplicate a single mascot. */}
-          <Card padded divided={false}>
-            <label className="block space-y-1">
-              <span className="sr-only">{t('settings.mascot.secondaryHeading')}</span>
-              <SettingsSelect
-                aria-label={t('settings.mascot.secondaryHeading')}
-                data-testid="mascot-secondary-select"
-                value={secondaryMascotId ?? '__none__'}
-                onChange={e =>
-                  handleSelectSecondaryMascot(e.target.value === '__none__' ? null : e.target.value)
-                }
-                className="w-full">
-                <option value="__none__">{t('settings.mascot.secondaryNone')}</option>
-                {manifest.mascots.map(mascot => (
-                  <option
-                    key={mascot.id}
-                    value={mascot.id}
-                    // Skip the primary's id — it already speaks as the first
-                    // mascot, so offering it as the second is a no-op the
-                    // reducer would reject anyway. When the primary is still the
-                    // default (selectedMascotId is null), the effective primary
-                    // is the resolved default entry (activeEntry), so disable
-                    // that too — otherwise the same mascot could be picked for
-                    // both slots and the meeting would render two identical ones.
-                    disabled={mascot.id === (selectedMascotId ?? activeEntry?.id)}>
-                    {mascot.name}
-                  </option>
-                ))}
-              </SettingsSelect>
-            </label>
-          </Card>
-          <p className="text-xs text-content-muted leading-relaxed px-1 mt-2">
-            {t('settings.mascot.secondaryDesc')}
-          </p>
-
-          {/* Per-mascot voices — a row per mascot whose voice is actually
-              addressable in `mascotVoices` (keyed by a concrete manifest
-              id). The join path (`selectMeetingMascotVoicePair`) resolves
-              the primary slot's voice from `mascotVoices[selectedMascotId]`,
-              so the primary row only appears once a specific primary mascot
-              is pinned; on the default mascot the effective single voice
-              (governed by the Voice section above) is what plays. Each row
-              writes its own `mascotVoices` entry and owns a guarded preview. */}
-          {secondaryMascotId != null && secondaryMascotId !== selectedMascotId && (
-            <div className="mt-3 space-y-3">
-              <h4 className="text-[11px] font-medium uppercase tracking-wide text-content-muted px-1">
-                {t('settings.mascot.perMascotVoiceHeading')}
-              </h4>
-              {selectedMascotId != null && (
-                <PerMascotVoiceRow
-                  mascotId={selectedMascotId}
-                  label={t('settings.mascot.primaryVoiceLabel')}
-                  testIdPrefix="mascot-voice-primary"
-                />
-              )}
-              <PerMascotVoiceRow
-                mascotId={secondaryMascotId}
-                label={t('settings.mascot.secondaryVoiceLabel')}
-                testIdPrefix="mascot-voice-secondary"
-              />
-            </div>
-          )}
-        </div>
-      )}
+      {/* The "Meeting duo" block (second-mascot picker + per-mascot voice
+          rows, issue #4277) was removed here: meetings are no longer part of
+          the product, so a second mascot had no surface left to appear in.
+          The `secondaryMascotId` / `mascotVoices` slice fields and their
+          persisted values are deliberately left in place. */}
     </>
   );
 

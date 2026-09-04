@@ -5,6 +5,9 @@ import Button from '../../ui/Button';
 import { CheckIcon } from '../../ui/icons';
 import { SettingsCheckbox } from '../controls';
 
+/** Stand-in rendered in place of a recovery word while the phrase is hidden. */
+export const MASKED_WORD = '••••••';
+
 export interface RecoveryPhraseGenerateModeProps {
   words: string[];
   revealed: boolean;
@@ -58,7 +61,14 @@ const RecoveryPhraseGenerateMode = ({
               <span className="text-content-muted font-mono text-xs w-5 text-right">
                 {index + 1}.
               </span>
-              <span className="font-mono font-medium">{word}</span>
+              {/* Not rendered until revealed. The blur above is presentation
+                  only — an unrevealed word still sat in the DOM and in the
+                  accessibility tree, readable by a screen reader, a text
+                  selection or devtools. The placeholder keeps the grid the
+                  same size so revealing does not reflow the card. */}
+              <span className="font-mono font-medium" aria-hidden={!revealed || undefined}>
+                {revealed ? word : MASKED_WORD}
+              </span>
             </div>
           ))}
         </div>

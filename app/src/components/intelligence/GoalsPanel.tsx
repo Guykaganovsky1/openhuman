@@ -11,7 +11,7 @@ import { LuCheck, LuPencil, LuPlus, LuSparkles, LuTrash2, LuX } from 'react-icon
 
 import { useT } from '../../lib/i18n/I18nContext';
 import { type GoalItem, goalsApi } from '../../services/api/goalsApi';
-import { Card } from '../ui';
+import { Card, ConfirmDialog } from '../ui';
 import Button from '../ui/Button';
 import Input from '../ui/Input';
 
@@ -30,6 +30,9 @@ export default function GoalsPanel() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Deleting a goal is not undoable, so it is confirmed like every other
+  // destructive action in the app.
+  const [pendingDelete, setPendingDelete] = useState<GoalItem | null>(null);
 
   const mountedRef = useRef(true);
 
@@ -274,7 +277,7 @@ export default function GoalsPanel() {
                           variant="secondary"
                           tone="danger"
                           size="xs"
-                          onClick={() => void handleDelete(goal.id)}
+                          onClick={() => setPendingDelete(goal)}
                           disabled={busyId === goal.id}
                           aria-label={t('brain.goals.deleteGoal')}>
                           <LuTrash2 className="h-3.5 w-3.5" />
@@ -288,6 +291,22 @@ export default function GoalsPanel() {
           )}
         </div>
       </Card>
+
+      {pendingDelete && (
+        <ConfirmDialog
+          destructive
+          testId="goal-delete-confirm"
+          title={t('brain.goals.deleteGoal')}
+          body={`${pendingDelete.text} · ${t('clearData.irreversible')}`}
+          confirmLabel={t('common.delete')}
+          onConfirm={() => {
+            const target = pendingDelete;
+            setPendingDelete(null);
+            void handleDelete(target.id);
+          }}
+          onCancel={() => setPendingDelete(null)}
+        />
+      )}
     </div>
   );
 }

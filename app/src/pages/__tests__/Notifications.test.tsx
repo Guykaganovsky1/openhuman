@@ -38,6 +38,23 @@ vi.mock('../../components/notifications/NotificationCenter', () => ({
 
 vi.mock('../../lib/i18n/I18nContext', () => ({ useT: () => ({ t: (k: string) => k }) }));
 
+vi.mock('../../services/notificationService', () => ({
+  markNotificationRead: vi.fn().mockResolvedValue(undefined),
+  dismissNotification: vi.fn().mockResolvedValue(undefined),
+}));
+
+function makeIntegrationItem(id: string, status: 'unread' | 'read' | 'dismissed' = 'unread') {
+  return {
+    id,
+    provider: 'gmail',
+    title: `Integration ${id}`,
+    body: 'body',
+    raw_payload: {},
+    status,
+    received_at: new Date().toISOString(),
+  };
+}
+
 function makeItem(
   id: string,
   body: string,
@@ -54,7 +71,10 @@ function makeItem(
   };
 }
 
-function renderPage(items: NotificationItem[]) {
+function renderPage(
+  items: NotificationItem[],
+  integrationItems: ReturnType<typeof makeIntegrationItem>[] = []
+) {
   const store = configureStore({
     reducer: { notifications: notificationsReducer },
     preloadedState: {
@@ -69,8 +89,8 @@ function renderPage(items: NotificationItem[]) {
           reminders: true,
           important: true,
         },
-        integrationItems: [],
-        integrationUnreadCount: 0,
+        integrationItems,
+        integrationUnreadCount: integrationItems.filter(n => n.status === 'unread').length,
         integrationLoading: false,
         integrationError: null,
       },
@@ -238,5 +258,64 @@ describe('Notifications page category filter', () => {
       'false'
     );
     expect(screen.getAllByTestId('notification-item')).toHaveLength(1);
+  });
+});
+
+/**
+ * U11 — the page header's "Mark all as read" / "Clear" used to act on the local
+ * `items` array only. On a page whose visible rows come from the embedded
+ * `<NotificationCenter />` (the core-backed integration feed) they were
+ * disabled, and when enabled they fired no RPC at all.
+ */
+describe('Notifications page header actions', () => {
+  it('marks the integration feed read through the core API', async () => {
+    const { markNotificationRead } = await import('../../services/notificationService');
+    const { store } = renderPage([], [makeIntegrationItem('i-1'), makeIntegrationItem('i-2')]);
+
+    const button = screen.getByTestId('alerts-mark-all-read');
+    expect(button).not.toBeDisabled();
+
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    expect(vi.mocked(markNotificationRead).mock.calls.map(c => c[0])).toEqual(['i-1', 'i-2']);
+    expect(store.getState().notifications.integrationItems.every(n => n.status === 'read')).toBe(
+      true
+    );
+  });
+
+  it('clears the integration feed through the core API', async () => {
+    const { dismissNotification } = await import('../../services/notificationService');
+    const { store } = renderPage([], [makeIntegrationItem('i-1'), makeIntegrationItem('i-2')]);
+
+    const button = screen.getByTestId('alerts-clear-all');
+    expect(button).not.toBeDisabled();
+
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    expect(vi.mocked(dismissNotification).mock.calls.map(c => c[0])).toEqual(['i-1', 'i-2']);
+    expect(
+      store.getState().notifications.integrationItems.every(n => n.status === 'dismissed')
+    ).toBe(true);
+  });
+
+  it('still clears the local core-bridge feed', async () => {
+    const { store } = renderPage([makeItem('n-1', 'plain body')]);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('alerts-clear-all'));
+    });
+
+    expect(store.getState().notifications.items).toHaveLength(0);
+  });
+
+  it('disables both actions when neither feed has anything to act on', () => {
+    renderPage([], [makeIntegrationItem('i-1', 'dismissed')]);
+
+    expect(screen.getByTestId('alerts-mark-all-read')).toBeDisabled();
+    expect(screen.getByTestId('alerts-clear-all')).toBeDisabled();
   });
 });

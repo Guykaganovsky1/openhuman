@@ -88,7 +88,22 @@ function MockRuntime({ children }: { children: ReactNode }) {
   // One adapter instance for the page's lifetime — the options doc requires a
   // stable reference, since replacing it reloads the list and drops threads.
   const [adapter] = useState(() => new InMemoryThreadListAdapter());
-  const runtime = useRemoteThreadListRuntime({ runtimeHook: useDemoThreadRuntime, adapter });
+  // `allowNesting` is required, not optional. Every route renders under the
+  // app-wide `ChatRuntimeProvider`, which already installs an assistant
+  // runtime, so this hook saw a thread-list-item source and threw
+  // "useRemoteThreadListRuntime cannot be nested inside another
+  // RemoteThreadListRuntime" — straight into the global error boundary, so
+  // `/dev/assistant-ui` never rendered at all. With the flag the inner remote
+  // thread list is a no-op and the hook returns `useDemoThreadRuntime()`'s
+  // local runtime directly. The demo stays fully mocked: the runtime handed to
+  // the children below is still the canned `useLocalRuntime`, so it cannot
+  // reach a real thread, message, or the core. What is lost is only the
+  // multi-thread rail, which needs a remote thread list to exist.
+  const runtime = useRemoteThreadListRuntime({
+    runtimeHook: useDemoThreadRuntime,
+    adapter,
+    allowNesting: true,
+  });
 
   return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
 }

@@ -64,17 +64,17 @@ describe('SecurityPanel — storage mode badge (lines 11, 27)', () => {
     mockRetryKeyringProbe.mockResolvedValue(undefined);
   });
 
-  it('renders os_keyring mode badge — key not in en.ts so t() returns key', () => {
+  it('renders os_keyring mode badge with its mapped label', () => {
     setupState(makeKeyringStatus({ activeMode: 'os_keyring' }));
     renderWithProviders(<SecurityPanel />);
-    // 'keyring.settings.mode.os_keyring' not in en.ts → rendered as key
-    expect(screen.getByText('keyring.settings.mode.os_keyring')).toBeInTheDocument();
+    // core value os_keyring maps to keyring.settings.mode.osKeychain
+    expect(screen.getByText('OS Keychain')).toBeInTheDocument();
   });
 
   it('renders local_encrypted mode badge', () => {
     setupState(makeKeyringStatus({ activeMode: 'local_encrypted' }));
     renderWithProviders(<SecurityPanel />);
-    expect(screen.getByText('keyring.settings.mode.local_encrypted')).toBeInTheDocument();
+    expect(screen.getByText('Local Encrypted')).toBeInTheDocument();
   });
 
   it('renders declined mode badge (line 27 — MODE_BADGE_VARIANT.declined = danger)', () => {
@@ -87,7 +87,7 @@ describe('SecurityPanel — storage mode badge (lines 11, 27)', () => {
   it('renders consent_pending mode badge', () => {
     setupState(makeKeyringStatus({ activeMode: 'consent_pending' }));
     renderWithProviders(<SecurityPanel />);
-    expect(screen.getByText('keyring.settings.mode.consent_pending')).toBeInTheDocument();
+    expect(screen.getByText('Not configured')).toBeInTheDocument();
   });
 });
 

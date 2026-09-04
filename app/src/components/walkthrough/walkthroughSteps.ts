@@ -60,21 +60,40 @@ export function createWalkthroughSteps(
 ): Step[] {
   return [
     // ── Step 1 — /chat empty state ────────────────────────────────────────
+    // These two used to have no `before` hook, on the assumption that the tour
+    // always starts on the chat surface — true right after onboarding, false for
+    // "Restart tour", which lives in Settings. Their targets were then missing,
+    // Joyride skipped both, and the tour opened on "3 of 10".
     {
       target: '[data-walkthrough="home-card"]',
       title: t('walkthrough.steps.startChat.title'),
       content: t('walkthrough.steps.startChat.content'),
       placement: 'bottom',
       skipBeacon: true,
+      before: async () => {
+        navigate('/chat');
+        // The greeting card mounts only on the chat's empty "new window" state,
+        // so a chat that already has messages genuinely has no target here and
+        // Joyride moves on. Swallow the timeout rather than reject: a rejected
+        // hook is recorded as a step failure and emits an ERROR event, which is
+        // not what an expected product state should look like.
+        await waitForTarget('home-card', 1500).catch(() => {
+          console.debug('[walkthrough] home-card absent — chat is not on its empty state');
+        });
+      },
     },
 
-    // ── Step 2 — /chat empty state ────────────────────────────────────────
+    // ── Step 2 — /chat ────────────────────────────────────────────────────
     {
       target: '[data-walkthrough="home-cta"]',
       title: t('walkthrough.steps.sayHello.title'),
       content: t('walkthrough.steps.sayHello.content'),
       placement: 'bottom',
       skipBeacon: true,
+      before: async () => {
+        navigate('/chat');
+        await waitForTarget('home-cta');
+      },
     },
 
     // ── Step 3 — /chat ────────────────────────────────────────────────────

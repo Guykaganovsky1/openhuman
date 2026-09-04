@@ -437,12 +437,16 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
   const [skillsLoading, setSkillsLoading] = useState(true);
   const [skillsError, setSkillsError] = useState<string | null>(null);
 
+  // Catalog rows loaded so far — the first page, plus whatever "Show more" has
+  // appended. The registry holds ~90k entries (~39 MB), so the search box, the
+  // source filter and the paging all run server-side and we only ever hold the
+  // pages the user actually revealed.
   const [catalogEntries, setCatalogEntries] = useState<CatalogEntry[]>([]);
   const [catalogTotal, setCatalogTotal] = useState(0);
-  // How many catalog entries are currently revealed. We fetch the whole list
-  // up front, then page through it client-side via the "Show more" control.
-  const [visibleCount, setVisibleCount] = useState(CATALOG_PAGE_SIZE);
   const [catalogLoading, setCatalogLoading] = useState(false);
+  // Separate from `catalogLoading` so appending a page keeps the rows on screen
+  // instead of swapping the table for the loading state.
+  const [catalogLoadingMore, setCatalogLoadingMore] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogInitialized, setCatalogInitialized] = useState(false);
   const [installingId, setInstallingId] = useState<string | null>(null);
@@ -465,6 +469,8 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
   const [detailSkill, setDetailSkill] = useState<WorkflowSummary | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Monotonic id of the newest catalog request; older replies are discarded. */
+  const catalogRequestRef = useRef(0);
 
   // Debounce search input
   useEffect(() => {
@@ -496,44 +502,60 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
     }
   }, []);
 
-  // Compute the active source filter for RPC calls.
-  // Only apply when the user has deselected at least one source.
-  const activeSourceFilter = useMemo(() => {
-    if (activeSources.size === 0 || activeSources.size >= sources.length) return undefined;
-    // If exactly one source is active, pass it as the filter
-    if (activeSources.size === 1) return [...activeSources][0];
-    return undefined;
+  // Active source filter as a stable string key, so it can be an effect dep
+  // without a fresh array identity re-firing the fetch on every render. Empty
+  // string = no filter (all or none of the chips selected).
+  const activeSourceKey = useMemo(() => {
+    if (activeSources.size === 0 || activeSources.size >= sources.length) return '';
+    return [...activeSources].sort().join('\n');
   }, [activeSources, sources.length]);
 
-  // Fetch catalog via RPC search (handles both browse and search).
-  // When query is empty and no source filter, uses browse; otherwise uses search.
-  const fetchCatalog = useCallback(
-    async (query: string, sourceFilter: string | undefined, forceRefresh: boolean) => {
-      log('fetchCatalog: query=%s source=%s forceRefresh=%s', query, sourceFilter, forceRefresh);
-      setCatalogLoading(true);
+  // Fetch one page of the catalog. The query and the source filter are sent to
+  // the core, which filters ~90k entries there and returns `limit` rows plus the
+  // pre-paging `total` — the list is never pulled into the renderer whole.
+  const fetchCatalogPage = useCallback(
+    async (query: string, sourceKey: string, forceRefresh: boolean, offset: number) => {
+      const append = offset > 0;
+      log(
+        'fetchCatalogPage: query=%s sources=%s forceRefresh=%s offset=%d append=%s',
+        query,
+        sourceKey,
+        forceRefresh,
+        offset,
+        append
+      );
+      // Pages append now, so a response that lost the race must be dropped:
+      // concatenating it would splice rows from an abandoned query into the
+      // current one. (The pre-paging code replaced the list, so a late reply
+      // was merely stale, never mixed.)
+      const requestId = ++catalogRequestRef.current;
+      if (append) setCatalogLoadingMore(true);
+      else setCatalogLoading(true);
       setCatalogError(null);
       try {
-        let entries: CatalogEntry[];
-        if (!query && !sourceFilter && !forceRefresh) {
-          entries = await skillRegistryApi.browse(false);
-        } else if (!query && !sourceFilter && forceRefresh) {
-          entries = await skillRegistryApi.browse(true);
-        } else {
-          entries = await skillRegistryApi.search(query || '', sourceFilter);
+        const page = await skillRegistryApi.browse({
+          query: query || undefined,
+          sources: sourceKey ? sourceKey.split('\n') : undefined,
+          offset,
+          limit: CATALOG_PAGE_SIZE,
+          forceRefresh,
+        });
+        if (catalogRequestRef.current !== requestId) {
+          log('fetchCatalogPage: superseded, discarding %d entries', page.entries.length);
+          return;
         }
-        log('fetchCatalog: total=%d', entries.length);
-        setCatalogTotal(entries.length);
-        // Keep the full list so "Show more" can page through it without another
-        // RPC; only a window of it is rendered (see displayedCatalog).
-        setCatalogEntries(entries);
-        setVisibleCount(CATALOG_PAGE_SIZE);
+        log('fetchCatalogPage: got=%d total=%d', page.entries.length, page.total);
+        setCatalogTotal(page.total);
+        setCatalogEntries(prev => (append ? [...prev, ...page.entries] : page.entries));
         setCatalogInitialized(true);
       } catch (err) {
+        if (catalogRequestRef.current !== requestId) return;
         const msg = err instanceof Error ? err.message : String(err);
-        log('fetchCatalog: error=%s', msg);
+        log('fetchCatalogPage: error=%s', msg);
         setCatalogError(msg);
       } finally {
-        setCatalogLoading(false);
+        if (append) setCatalogLoadingMore(false);
+        else setCatalogLoading(false);
       }
     },
     []
@@ -550,12 +572,12 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
       .catch(() => {});
   }, [fetchSkills]);
 
-  // Trigger catalog search when debounced query or source filter changes
+  // Trigger a fresh first page when the debounced query or source filter changes
   useEffect(() => {
     if (view === 'registry') {
-      void fetchCatalog(debouncedQuery, activeSourceFilter, false);
+      void fetchCatalogPage(debouncedQuery, activeSourceKey, false, 0);
     }
-  }, [view, debouncedQuery, activeSourceFilter, fetchCatalog]);
+  }, [view, debouncedQuery, activeSourceKey, fetchCatalogPage]);
 
   const installedKeys = useMemo(
     () => new Set(skills.flatMap(skill => workflowInstallKeys(skill))),
@@ -591,26 +613,6 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
       return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
     });
   }, [filteredSkills]);
-
-  // When multiple sources are active (but not all), do client-side filtering
-  // on the already-fetched results since the RPC only supports single source filter.
-  const filteredCatalog = useMemo(() => {
-    if (
-      activeSources.size === 0 ||
-      activeSources.size >= sources.length ||
-      activeSources.size === 1
-    ) {
-      return catalogEntries;
-    }
-    return catalogEntries.filter(e => activeSources.has(e.source));
-  }, [catalogEntries, activeSources, sources.length]);
-
-  // Client-side pagination window: we already hold the full fetched list, so
-  // "Show more" reveals the next page instantly with no extra RPC.
-  const displayedCatalog = useMemo(
-    () => filteredCatalog.slice(0, visibleCount),
-    [filteredCatalog, visibleCount]
-  );
 
   const handleInstalled = useCallback(
     (result: InstallWorkflowFromUrlResult) => {
@@ -734,7 +736,7 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
         iconOnly
         variant="secondary"
         size="md"
-        onClick={() => void fetchCatalog(debouncedQuery, activeSourceFilter, true)}
+        onClick={() => void fetchCatalogPage(debouncedQuery, activeSourceKey, true, 0)}
         disabled={catalogLoading}
         title={t('skills.explorer.refreshRegistry')}
         aria-label={t('skills.explorer.refreshRegistry')}
@@ -769,7 +771,7 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
           onClick={() =>
             void (view === 'installed'
               ? fetchSkills()
-              : fetchCatalog(debouncedQuery, activeSourceFilter, true))
+              : fetchCatalogPage(debouncedQuery, activeSourceKey, true, 0))
           }
           className="mt-2">
           {t('common.retry')}
@@ -800,23 +802,33 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
       title={debouncedQuery ? t('skills.noResults') : t('skills.explorer.registryEmptyTitle')}
       description={debouncedQuery ? '' : t('skills.explorer.registryEmptyDescription')}
       actionLabel={debouncedQuery ? undefined : t('skills.explorer.refreshRegistry')}
-      onAction={debouncedQuery ? undefined : () => void fetchCatalog('', undefined, true)}
+      onAction={debouncedQuery ? undefined : () => void fetchCatalogPage('', '', true, 0)}
     />
   ) : null;
 
+  // "Show more" now fetches the next server page instead of revealing more of a
+  // fully-downloaded list, so the control is driven by the server-reported total.
   const registryFooter =
-    filteredCatalog.length > displayedCatalog.length ? (
+    catalogEntries.length < catalogTotal ? (
       <div className="mt-3 flex flex-col items-center gap-1">
         <Button
           variant="secondary"
           size="sm"
           data-testid="registry-show-more"
-          onClick={() => setVisibleCount(c => c + CATALOG_PAGE_SIZE)}
+          disabled={catalogLoadingMore}
+          onClick={() =>
+            void fetchCatalogPage(
+              debouncedQuery,
+              activeSourceKey,
+              false,
+              catalogEntries.length
+            )
+          }
           className="h-auto border-line px-4 py-2 text-xs font-medium text-content-secondary shadow-soft">
           {t('common.showMore')}
         </Button>
         <p className="text-[11px] text-content-faint">
-          {displayedCatalog.length.toLocaleString()} / {filteredCatalog.length.toLocaleString()}
+          {catalogEntries.length.toLocaleString()} / {catalogTotal.toLocaleString()}
         </p>
       </div>
     ) : null;
@@ -859,7 +871,7 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
         <DataTable<CatalogEntry>
           {...shared}
           columns={columns as DataTableColumn<CatalogEntry>[]}
-          rows={displayedCatalog}
+          rows={catalogEntries}
           rowKey={entry => `${entry.source}-${entry.id}`}
           empty={registryEmpty}
           footer={registryFooter}

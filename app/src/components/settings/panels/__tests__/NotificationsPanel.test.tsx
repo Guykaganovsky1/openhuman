@@ -39,14 +39,19 @@ vi.mock('../../layout/SettingsPanel', () => ({
 
 /** Every category the panel renders, in render order. */
 const CATEGORY_IDS: NotificationCategory[] = [
-  'messages',
   'agents',
   'skills',
   'system',
-  'meetings',
   'reminders',
   'important',
 ];
+
+/**
+ * Categories that still exist in the slice but must NOT be offered as toggles:
+ * `messages` described the embedded provider webviews (removed in #5478) and
+ * `meetings` described a product surface that was deleted outright.
+ */
+const REMOVED_CATEGORY_IDS: NotificationCategory[] = ['messages', 'meetings'];
 
 function buildStore(preferences?: Partial<NotificationPreferences>) {
   const store = configureStore({ reducer: { notifications: notificationReducer } });
@@ -136,17 +141,15 @@ describe('NotificationsPanel — reflects store state', () => {
     renderPanel({ preferences: { agents: false } });
     expect(switchFor('agents')).toHaveAttribute('aria-checked', 'false');
     // ...and does not disturb its neighbours.
-    expect(switchFor('messages')).toHaveAttribute('aria-checked', 'true');
+    expect(switchFor('skills')).toHaveAttribute('aria-checked', 'true');
   });
 
   it('renders a mixed preference set correctly, switch by switch', () => {
-    renderPanel({ preferences: { messages: false, skills: false, important: false } });
-    const expected: Record<NotificationCategory, string> = {
-      messages: 'false',
-      agents: 'true',
+    renderPanel({ preferences: { agents: false, skills: false, important: false } });
+    const expected: Partial<Record<NotificationCategory, string>> = {
+      agents: 'false',
       skills: 'false',
       system: 'true',
-      meetings: 'true',
       reminders: 'true',
       important: 'false',
     };
@@ -173,10 +176,10 @@ describe('NotificationsPanel — toggling', () => {
 
   it('toggles only the clicked category', () => {
     const { store } = renderPanel();
-    fireEvent.click(switchFor('meetings'));
+    fireEvent.click(switchFor('reminders'));
     const after = prefs(store);
-    expect(after.meetings).toBe(false);
-    for (const id of CATEGORY_IDS.filter(c => c !== 'meetings')) {
+    expect(after.reminders).toBe(false);
+    for (const id of CATEGORY_IDS.filter(c => c !== 'reminders')) {
       expect(after[id]).toBe(true);
     }
   });
@@ -202,6 +205,23 @@ describe('NotificationsPanel — toggling', () => {
     // Exactly one preference changed, and it is this one.
     const changed = CATEGORY_IDS.filter(c => prefs(store)[c] !== true);
     expect(changed).toEqual([id]);
+  });
+});
+
+describe('NotificationsPanel — removed product surfaces', () => {
+  it.each(REMOVED_CATEGORY_IDS)('does not render a "%s" toggle', id => {
+    renderPanel();
+    expect(
+      screen.queryByText(`settings.notifications.category.${id}.title`)
+    ).not.toBeInTheDocument();
+    expect(document.getElementById(`switch-notif-${id}`)).toBeNull();
+  });
+
+  it('renders only the surviving categories', () => {
+    renderPanel();
+    expect(screen.getAllByRole('switch')).toHaveLength(CATEGORY_IDS.length);
+    expect(CATEGORY_IDS).not.toContain('messages');
+    expect(CATEGORY_IDS).not.toContain('meetings');
   });
 });
 

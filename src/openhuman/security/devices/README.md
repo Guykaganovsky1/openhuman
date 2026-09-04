@@ -106,6 +106,6 @@ Separately, encrypted X25519 private keys are persisted as `enc2:` strings (via 
 - The `label` persisted on pairing currently falls back to the `channel_id` (the pending session stores no real label field; `PairingSession.channel_id` is used as the label source).
 - `devices_revoke` only tears down local + in-memory state. There is **no backend revoke endpoint yet** (TODO referencing PR #709 follow-up); the backend channel is left to expire via the pairing-token TTL.
 - `rpc_url` LAN detection uses the UDP "connect to 8.8.8.8" trick to read the local IPv4; port comes from `OPENHUMAN_CORE_RPC_PORT` env (default `7788`). Non-fatal if it fails.
-- `tunnel:register` uses `SocketManager::emit_with_ack` and expects backend ACK shape `{channelId, pairingToken, pairingExpiresAt}` with a 10-second timeout.
+- `tunnel:register` uses `SocketManager::emit_with_ack` and expects backend ACK shape `{channelId, pairingToken, pairingExpiresAt}` with a 10-second timeout. `pairingExpiresAt` decodes from either an ISO 8601 string or an epoch-millis integer (the live backend has sent both); the integer is normalised to the ISO string every consumer downstream parses. A decode failure logs the ack's top-level key names and encoded length — never its values, since the ack carries the single-use pairing token.
 - `PairingSession` and the keypair maps are in-memory only (TTL/cleanup deferred to backend semantics); they are cleared on revoke.
 - Outbound `tunnel:frame` payloads are capped at 64 KB; callers are expected to stay ≤ 100 frames/s.

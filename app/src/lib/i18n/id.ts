@@ -727,6 +727,7 @@ const messages: TranslationMap = {
   'chat.startConversation': 'Mulai percakapan',
   'chat.regenerate': 'Buat ulang',
   'chat.copyResponse': 'Salin respons',
+  'chat.copyMessage': 'Salin pesan',
   'chat.citations': 'Sitasi',
   'chat.toolUsed': 'Alat yang digunakan',
   'scope.legacy': 'Lama',
@@ -2337,9 +2338,11 @@ const messages: TranslationMap = {
   'chat.noThreads': 'Belum ada thread',
   'chat.noLabelThreads': 'Tidak ada thread "{label}"',
   'chat.deleteThread': 'Hapus thread',
+  'chat.deleteThreadAria': 'Hapus percakapan {title}',
   'chat.deleteThreadConfirm': 'Yakin ingin menghapus "{title}"?',
   'chat.untitledThread': 'Thread tanpa judul',
   'chat.editThreadTitle': 'Edit judul utas',
+  'chat.renameThreadAria': 'Ganti nama percakapan {title}',
   'chat.hideSidebar': 'Sembunyikan sidebar',
   'chat.showSidebar': 'Tampilkan sidebar',
   'chat.searchThreads': 'Cari percakapan',
@@ -2857,6 +2860,7 @@ const messages: TranslationMap = {
   'onboarding.skills.status.unavailable': 'Tidak tersedia',
   'composio.statusUnavailable': 'Status tidak tersedia',
   'composio.authExpired': 'Autentikasi kedaluwarsa',
+  'composio.authRevoked': 'Akses dicabut',
   'composio.reconnect': 'Hubungkan ulang',
   'composio.expiredAuthorization': '{name} otorisasi kedaluwarsa',
   'composio.expiredDescription':
@@ -3123,6 +3127,8 @@ const messages: TranslationMap = {
     'Pilih metode di bawah: tautkan akun Anda lewat OpenHuman, pasang bot dengan OAuth, atau tempel token bot Anda sendiri dari portal developer Discord.',
   'channels.connectHelp.telegram':
     'Pilih metode di bawah: kirim pesan ke bot OpenHuman terkelola untuk menautkannya, atau tempel token bot Anda sendiri dari @BotFather.',
+  'channels.connectHelp.imessage':
+    'Tidak perlu kredensial. OpenHuman membaca basis data Messages lokal, jadi beri Akses Disk Penuh di Pengaturan Sistem > Privasi & Keamanan > Akses Disk Penuh, lalu mulai ulang aplikasi.',
   'channels.connectHelp.slackNote':
     'Mencari Slack? Slack terhubung sebagai aplikasi di Koneksi → OAuth, bukan sebagai saluran pesan di sini.',
   'channels.web.displayName': 'Web',
@@ -4161,7 +4167,8 @@ const messages: TranslationMap = {
   'pages.settings.features.notifications': 'Notifikasi',
   'pages.settings.features.notificationsDesc': 'Deskripsi notifikasi',
   'pages.settings.features.tools': 'Alat',
-  'pages.settings.features.toolsDesc': 'Deskripsi alat',
+  'pages.settings.features.toolsDesc':
+    'Aktifkan atau nonaktifkan setiap alat agen, dikelompokkan menurut kategori.',
   'pages.settings.featuresSection.title': 'Fitur',
   'privacy.dataKind.credentials': 'Kredensial',
   'privacy.dataKind.derived': 'Turunan',
@@ -4243,7 +4250,7 @@ const messages: TranslationMap = {
   'rewards.coupon.subtitle': 'Subjudul',
   'rewards.coupon.title': 'Tukarkan kode kupon',
   'rewards.referralSection.activity': 'Aktivitas referral',
-  'rewards.referralSection.apply': 'Menerapkan...',
+  'rewards.referralSection.apply': 'Terapkan',
   'rewards.referralSection.applying': 'Menerapkan...',
   'rewards.referralSection.colReferredUser': 'Pengguna yang direferensikan',
   'rewards.referralSection.colReward': 'Hadiah',

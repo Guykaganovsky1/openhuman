@@ -145,10 +145,15 @@ pub(crate) fn environment_for_base(base: &str) -> &'static str {
 /// `test` appears in the backend's list but not here because there is no such
 /// bucket on this side: [`environment_for_base`] maps loopback hosts to
 /// `development`, and that is what the Rust suite resolves to.
-const LANGFUSE_PUSH_ENVIRONMENTS: &[&str] = &["staging", "development"];
+///
+/// `pub(crate)` because the flow-run exporter
+/// (`flows::tinyflows::langfuse_export`) pushes to the same backend route and
+/// must obey the same rule; it names this list rather than restating it, so
+/// the two paths cannot disagree about which environments may push.
+pub(crate) const LANGFUSE_PUSH_ENVIRONMENTS: &[&str] = &["staging", "development"];
 
 /// Whether a push is permitted for a resolved environment.
-fn push_allowed(environment: &str) -> bool {
+pub(crate) fn push_allowed(environment: &str) -> bool {
     LANGFUSE_PUSH_ENVIRONMENTS.contains(&environment)
 }
 

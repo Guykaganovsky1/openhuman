@@ -15,6 +15,8 @@ import {
   MemorySourcesRegistry,
   parseIngestedCount,
   parseSyncProgress,
+  resolveSyncRowId,
+  stripSourceScopePrefix,
 } from '../MemorySourcesRegistry';
 
 // ── i18n mock (returns key as the translation) ────────────────────────────────
@@ -142,12 +144,14 @@ describe('MemorySourcesRegistry', () => {
   let listMemorySources: ReturnType<typeof vi.fn>;
   let memorySourcesStatusList: ReturnType<typeof vi.fn>;
   let syncMemorySource: ReturnType<typeof vi.fn>;
+  let removeMemorySource: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     const svc = await import('../../../services/memorySourcesService');
     listMemorySources = svc.listMemorySources as ReturnType<typeof vi.fn>;
     memorySourcesStatusList = svc.memorySourcesStatusList as ReturnType<typeof vi.fn>;
     syncMemorySource = svc.syncMemorySource as ReturnType<typeof vi.fn>;
+    removeMemorySource = svc.removeMemorySource as ReturnType<typeof vi.fn>;
   });
 
   afterEach(() => {
@@ -484,5 +488,169 @@ describe('MemorySourcesRegistry', () => {
     });
     // The optimistic syncing state is cleared after the RPC rejection.
     expect(screen.queryByText('sync.syncing')).not.toBeInTheDocument();
+  });
+
+  // ── U3: scoped source_id resolution + poll reconciliation ─────────────────
+
+  it('matches a row when the event carries a scoped source_id (U3)', async () => {
+    const sources = [makeSource('src_scoped')];
+    listMemorySources.mockResolvedValue(sources);
+    memorySourcesStatusList.mockResolvedValue([]);
+
+    renderWithProviders(<MemorySourcesRegistry pollIntervalMs={0} />);
+    await waitFor(() => expect(screen.getByText('Source src_scoped')).toBeInTheDocument());
+
+    // The core attributes folder syncs with a scoped id; the row is keyed by the
+    // bare id. Before the fix this keyed the progress map by the scoped string
+    // and the row never lit up.
+    act(() => {
+      window.dispatchEvent(
+        makeSyncStageEvent({
+          stage: 'fetching',
+          source_id: 'workspace:folder:src_scoped',
+          connection_id: 'src_scoped',
+        })
+      );
+    });
+
+    await waitFor(() => expect(screen.getByText('sync.syncing')).toBeInTheDocument());
+  });
+
+  it('leaves the syncing state when the terminal event carries a scoped source_id (U3)', async () => {
+    const sources = [makeSource('src_scoped')];
+    listMemorySources.mockResolvedValue(sources);
+    memorySourcesStatusList.mockResolvedValue([]);
+
+    renderWithProviders(<MemorySourcesRegistry pollIntervalMs={0} />);
+    await waitFor(() => expect(screen.getByText('Source src_scoped')).toBeInTheDocument());
+
+    // Manual sync adds the *bare* id optimistically.
+    fireEvent.click(screen.getByTestId('memory-source-sync-folder'));
+    await waitFor(() => expect(screen.getByText('sync.syncing')).toBeInTheDocument());
+
+    // The terminal event names the row with the scoped id. Before the fix the
+    // Set delete missed and the row stayed "Syncing…" until remount.
+    act(() => {
+      window.dispatchEvent(
+        makeSyncStageEvent({
+          stage: 'completed',
+          source_id: 'workspace:folder:src_scoped',
+          connection_id: 'src_scoped',
+          detail: 'ingested 3 item(s)',
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText('sync.syncing')).not.toBeInTheDocument();
+      expect(screen.getByText('sync.sync')).toBeInTheDocument();
+    });
+  });
+
+  it('drops a syncing id the refreshed source list no longer names (U3 safety net)', async () => {
+    listMemorySources.mockResolvedValue([makeSource('src-ghost')]);
+    memorySourcesStatusList.mockResolvedValue([]);
+
+    renderWithProviders(<MemorySourcesRegistry pollIntervalMs={10} />);
+    await waitFor(() => expect(screen.getByText('Source src-ghost')).toBeInTheDocument());
+
+    act(() => {
+      window.dispatchEvent(makeSyncStageEvent({ stage: 'fetching', source_id: 'src-ghost' }));
+    });
+    await waitFor(() => expect(screen.getByText('sync.syncing')).toBeInTheDocument());
+
+    // The source leaves the list (removed elsewhere) — the terminal event for it
+    // will never arrive, so the poll has to reconcile.
+    listMemorySources.mockResolvedValue([]);
+    await waitFor(() => expect(screen.queryByText('Source src-ghost')).not.toBeInTheDocument());
+
+    // It comes back: with the reconciliation the row is idle, without it the
+    // stale id is still in the set and the row renders "Syncing…" forever.
+    listMemorySources.mockResolvedValue([makeSource('src-ghost')]);
+    await waitFor(() => expect(screen.getByText('Source src-ghost')).toBeInTheDocument());
+    expect(screen.queryByText('sync.syncing')).not.toBeInTheDocument();
+    expect(screen.getByText('sync.sync')).toBeInTheDocument();
+  });
+
+  // ── U18: removing a source is confirmed ───────────────────────────────────
+
+  it('asks for confirmation before removing a source, and removes on confirm (U18)', async () => {
+    listMemorySources.mockResolvedValue([makeSource('src-del')]);
+    memorySourcesStatusList.mockResolvedValue([]);
+
+    renderWithProviders(<MemorySourcesRegistry pollIntervalMs={0} />);
+    await waitFor(() => expect(screen.getByText('Source src-del')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'memorySources.remove' }));
+
+    // The RPC must not fire on the click alone.
+    expect(removeMemorySource).not.toHaveBeenCalled();
+
+    const confirm = await screen.findByRole('button', { name: 'common.remove' });
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(removeMemorySource).toHaveBeenCalledWith('src-del'));
+  });
+
+  it('does not remove a source when the confirmation is cancelled (U18)', async () => {
+    listMemorySources.mockResolvedValue([makeSource('src-keep')]);
+    memorySourcesStatusList.mockResolvedValue([]);
+
+    renderWithProviders(<MemorySourcesRegistry pollIntervalMs={0} />);
+    await waitFor(() => expect(screen.getByText('Source src-keep')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'memorySources.remove' }));
+
+    const cancel = await screen.findByRole('button', { name: 'common.cancel' });
+    fireEvent.click(cancel);
+
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: 'common.remove' })).not.toBeInTheDocument()
+    );
+    expect(removeMemorySource).not.toHaveBeenCalled();
+  });
+});
+
+// ── U3: row-id resolution unit tests ────────────────────────────────────────
+
+describe('resolveSyncRowId', () => {
+  const known = new Set(['src_abc', 'src-legacy']);
+
+  it('strips a <kind>:<subkind>: scope prefix down to the listed row id', () => {
+    expect(resolveSyncRowId({ source_id: 'workspace:folder:src_abc' }, known)).toBe('src_abc');
+  });
+
+  it('prefers a bare source_id that already names a row', () => {
+    expect(
+      resolveSyncRowId({ source_id: 'src_abc', connection_id: 'mem_src:src_abc:doc-1' }, known)
+    ).toBe('src_abc');
+  });
+
+  it('falls back to connection_id when source_id names no row', () => {
+    expect(resolveSyncRowId({ source_id: null, connection_id: 'src-legacy' }, known)).toBe(
+      'src-legacy'
+    );
+  });
+
+  it('returns the raw source_id when nothing matches (list not loaded yet)', () => {
+    expect(resolveSyncRowId({ source_id: 'src-unknown' }, new Set())).toBe('src-unknown');
+  });
+
+  it('returns null when the event names no row at all', () => {
+    expect(resolveSyncRowId({}, known)).toBeNull();
+    expect(resolveSyncRowId(null, known)).toBeNull();
+  });
+});
+
+describe('stripSourceScopePrefix', () => {
+  it('drops the first two colon-separated segments', () => {
+    expect(stripSourceScopePrefix('workspace:folder:src_abc')).toBe('src_abc');
+    expect(stripSourceScopePrefix('mem_src:src_abc:https://x/y')).toBe('https://x/y');
+  });
+
+  it('returns null when there is no two-segment prefix', () => {
+    expect(stripSourceScopePrefix('src_abc')).toBeNull();
+    expect(stripSourceScopePrefix('github:owner/repo')).toBeNull();
+    expect(stripSourceScopePrefix('workspace:folder:')).toBeNull();
   });
 });

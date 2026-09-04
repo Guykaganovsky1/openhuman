@@ -58,19 +58,53 @@ pub fn skill_registry_schemas(function: &str) -> ControllerSchema {
         "browse" => ControllerSchema {
             namespace: "skill_registry",
             function: "browse",
-            description: "Browse the skill registry catalog (aggregated from HermesHub). Returns cached results unless force_refresh is true.",
-            inputs: vec![FieldSchema {
-                name: "force_refresh",
-                ty: TypeSchema::Bool,
-                comment: "Force re-fetch from the Hermes API, ignoring the local cache.",
-                required: false,
-            }],
-            outputs: vec![FieldSchema {
-                name: "entries",
-                ty: TypeSchema::Json,
-                comment: "Array of catalog entries.",
-                required: true,
-            }],
+            description: "Browse the skill registry catalog (aggregated from HermesHub). Returns cached results unless force_refresh is true. Pass query/sources/offset/limit to filter and page server-side; omitting limit returns the whole catalog (~90k entries).",
+            inputs: vec![
+                FieldSchema {
+                    name: "force_refresh",
+                    ty: TypeSchema::Bool,
+                    comment: "Force re-fetch from the Hermes API, ignoring the local cache.",
+                    required: false,
+                },
+                FieldSchema {
+                    name: "query",
+                    ty: TypeSchema::String,
+                    comment: "Case-insensitive substring filter over name, description, tags, category and author.",
+                    required: false,
+                },
+                FieldSchema {
+                    name: "sources",
+                    ty: TypeSchema::Array(Box::new(TypeSchema::String)),
+                    comment: "Restrict to these upstream sources (case-insensitive). Empty or omitted means no source filter.",
+                    required: false,
+                },
+                FieldSchema {
+                    name: "offset",
+                    ty: TypeSchema::U64,
+                    comment: "Index of the first entry to return within the filtered set. Defaults to 0.",
+                    required: false,
+                },
+                FieldSchema {
+                    name: "limit",
+                    ty: TypeSchema::U64,
+                    comment: "Page size, clamped to 200. Omit to return every matching entry.",
+                    required: false,
+                },
+            ],
+            outputs: vec![
+                FieldSchema {
+                    name: "entries",
+                    ty: TypeSchema::Json,
+                    comment: "Array of catalog entries for the requested page.",
+                    required: true,
+                },
+                FieldSchema {
+                    name: "total",
+                    ty: TypeSchema::U64,
+                    comment: "Number of entries matching the filter before paging. Only present when query/sources/offset/limit was supplied.",
+                    required: false,
+                },
+            ],
         },
         "search" => ControllerSchema {
             namespace: "skill_registry",

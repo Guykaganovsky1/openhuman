@@ -165,6 +165,128 @@ fn refresh_on_boot_enabled_defaults_on_and_accepts_common_false_values() {
     assert!(!refresh_on_boot_enabled(Some("OFF")));
 }
 
+// ── Server-side browse paging (#U2) ─────────────────────────────────────────
+//
+// Before these existed `skill_registry_browse` had exactly one parameter
+// (`force_refresh`) and always serialized the whole ~90k-entry catalog, so the
+// explorer re-pulled ~39 MB per cache miss and paged it client-side.
+
+/// Catalog entry with only the fields the paging filter reads.
+fn paging_entry(name: &str, description: &str, source: &str, tags: &[&str]) -> CatalogEntry {
+    parse_hermes_entry(&json!({
+        "name": name,
+        "description": description,
+        "source": source,
+        "category": "apple",
+        "author": "Ada",
+        "tags": tags,
+        "docsPath": "bundled/apple/apple-apple-notes"
+    }))
+    .expect("entry")
+}
+
+fn paging_catalog() -> Vec<CatalogEntry> {
+    vec![
+        paging_entry("alpha", "first entry", "built-in", &["docker"]),
+        paging_entry("beta", "second entry", "ClawHub", &["notes"]),
+        paging_entry("gamma", "DOCKER containers", "skills.sh", &[]),
+        paging_entry("delta", "fourth entry", "built-in", &[]),
+    ]
+}
+
+#[test]
+fn page_catalog_without_limit_returns_the_whole_catalog() {
+    let page = page_catalog(paging_catalog(), None, None, 0, None);
+    assert_eq!(
+        page.entries.len(),
+        4,
+        "no paging params = today's behaviour"
+    );
+    assert_eq!(page.total, 4);
+    assert_eq!(page.entries[0].name, "alpha");
+    assert_eq!(page.entries[3].name, "delta");
+}
+
+#[test]
+fn page_catalog_query_filters_case_insensitively_across_fields() {
+    // "docker" appears as a tag on alpha and inside gamma's description only.
+    let page = page_catalog(paging_catalog(), Some("DoCkEr"), None, 0, None);
+    let names: Vec<&str> = page.entries.iter().map(|e| e.name.as_str()).collect();
+    assert_eq!(names, vec!["alpha", "gamma"]);
+    assert_eq!(page.total, 2);
+
+    // Name match.
+    let page = page_catalog(paging_catalog(), Some("BETA"), None, 0, None);
+    assert_eq!(page.total, 1);
+    assert_eq!(page.entries[0].name, "beta");
+
+    // Author match (every fixture shares one author).
+    let page = page_catalog(paging_catalog(), Some("ada"), None, 0, None);
+    assert_eq!(page.total, 4);
+
+    // Whitespace-only query is not a filter.
+    let page = page_catalog(paging_catalog(), Some("   "), None, 0, None);
+    assert_eq!(page.total, 4);
+}
+
+#[test]
+fn page_catalog_filters_by_source_list() {
+    let sources = vec!["BUILT-IN".to_string(), "skills.sh".to_string()];
+    let page = page_catalog(paging_catalog(), None, Some(&sources), 0, None);
+    let names: Vec<&str> = page.entries.iter().map(|e| e.name.as_str()).collect();
+    assert_eq!(names, vec!["alpha", "gamma", "delta"]);
+    assert_eq!(page.total, 3);
+
+    // An empty list means "no filter", not "match nothing".
+    let none: Vec<String> = Vec::new();
+    let page = page_catalog(paging_catalog(), None, Some(&none), 0, None);
+    assert_eq!(page.total, 4);
+}
+
+#[test]
+fn page_catalog_slices_by_offset_and_limit_and_reports_unpaged_total() {
+    let page = page_catalog(paging_catalog(), None, None, 0, Some(2));
+    let names: Vec<&str> = page.entries.iter().map(|e| e.name.as_str()).collect();
+    assert_eq!(names, vec!["alpha", "beta"]);
+    assert_eq!(page.total, 4, "total counts the filtered set, not the page");
+
+    let page = page_catalog(paging_catalog(), None, None, 2, Some(2));
+    let names: Vec<&str> = page.entries.iter().map(|e| e.name.as_str()).collect();
+    assert_eq!(names, vec!["gamma", "delta"]);
+    assert_eq!(page.total, 4);
+
+    // Offset past the end yields an empty page, not an error.
+    let page = page_catalog(paging_catalog(), None, None, 99, Some(2));
+    assert!(page.entries.is_empty());
+    assert_eq!(page.total, 4);
+}
+
+#[test]
+fn page_catalog_combines_query_and_source_and_paging() {
+    let sources = vec!["built-in".to_string()];
+    let page = page_catalog(paging_catalog(), Some("entry"), Some(&sources), 1, Some(10));
+    // "entry" matches alpha + delta descriptions; source keeps both; offset drops alpha.
+    assert_eq!(page.total, 2);
+    assert_eq!(page.entries.len(), 1);
+    assert_eq!(page.entries[0].name, "delta");
+}
+
+#[test]
+fn page_catalog_clamps_limit_to_the_maximum() {
+    let big: Vec<CatalogEntry> = (0..MAX_BROWSE_LIMIT + 50)
+        .map(|i| paging_entry(&format!("skill-{i}"), "d", "built-in", &[]))
+        .collect();
+    let total = big.len();
+
+    let page = page_catalog(big, None, None, 0, Some(10_000));
+    assert_eq!(
+        page.entries.len(),
+        MAX_BROWSE_LIMIT,
+        "an oversized limit is clamped, never served as the full catalog"
+    );
+    assert_eq!(page.total, total);
+}
+
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering as AtomicOrdering};
 use std::sync::Arc;
 

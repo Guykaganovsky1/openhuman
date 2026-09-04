@@ -63,6 +63,57 @@ describe('ChannelSetupModal', () => {
     expect(screen.getByText(/Configuration for/i)).toBeInTheDocument();
   });
 
+  // Both channels used to fall through to that same `default:` arm, so opening
+  // "Web / Manage" or "iMessage / Setup" from the Connections grid produced an
+  // empty sheet reading "Configuration for Web" with no control in it.
+  it('tells the truth about Web instead of rendering an empty configuration shell', () => {
+    const webDef = FALLBACK_DEFINITIONS.find(d => d.id === 'web')!;
+    renderWithProviders(<ChannelSetupModal definition={webDef} onClose={() => {}} />);
+
+    expect(screen.queryByText(/Configuration for/i)).not.toBeInTheDocument();
+    // Web is the built-in chat surface: nothing to configure, always on.
+    expect(screen.getByText('Always available')).toBeInTheDocument();
+  });
+
+  it('renders the real iMessage requirements: the Full Disk Access grant and allowed contacts', () => {
+    const imessageDef: ChannelDefinition = {
+      id: 'imessage',
+      display_name: 'iMessage',
+      description: 'Send and receive via macOS Messages (local, AppleScript bridge).',
+      icon: 'imessage',
+      auth_modes: [
+        {
+          mode: 'managed_dm',
+          description: 'Local-only — no credentials. Grant Full Disk Access to OpenHuman.',
+          fields: [
+            {
+              key: 'allowed_contacts',
+              label: 'Allowed Contacts',
+              field_type: 'string',
+              required: false,
+              placeholder: 'Comma-separated phone numbers or emails; * to allow any',
+            },
+          ],
+          auth_action: undefined,
+        },
+      ],
+      capabilities: ['send_text', 'receive_text'],
+    };
+
+    renderWithProviders(<ChannelSetupModal definition={imessageDef} onClose={() => {}} />);
+
+    expect(screen.queryByText(/Configuration for/i)).not.toBeInTheDocument();
+    // The macOS permission the channel actually depends on — without it the
+    // channel connects and then silently receives nothing. It reaches the sheet
+    // twice: as the how-to-connect callout and as the auth mode's own
+    // description, which is why this counts rather than picking one.
+    expect(screen.getAllByText(/Full Disk Access/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/System Settings/i)).toBeInTheDocument();
+    // The one field the core declares, plus a control that does something.
+    expect(screen.getByLabelText(/Allowed Contacts/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument();
+  });
+
   it('invokes onClose when the Escape key is pressed', () => {
     const onClose = vi.fn();
     renderWithProviders(<ChannelSetupModal definition={yuanbaoDef} onClose={onClose} />);

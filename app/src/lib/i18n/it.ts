@@ -739,6 +739,7 @@ const messages: TranslationMap = {
   'chat.startConversation': 'Inizia una conversazione',
   'chat.regenerate': 'Rigenera',
   'chat.copyResponse': 'Copia risposta',
+  'chat.copyMessage': 'Copia messaggio',
   'chat.citations': 'Citazioni',
   'chat.toolUsed': 'Strumento usato',
   'scope.legacy': 'Legacy',
@@ -2370,9 +2371,11 @@ const messages: TranslationMap = {
   'chat.noThreads': 'Nessun thread',
   'chat.noLabelThreads': 'Nessun thread "{label}"',
   'chat.deleteThread': 'Elimina thread',
+  'chat.deleteThreadAria': 'Elimina la conversazione {title}',
   'chat.deleteThreadConfirm': 'Sei sicuro di voler eliminare "{title}"?',
   'chat.untitledThread': 'Thread senza titolo',
   'chat.editThreadTitle': 'Modifica titolo del thread',
+  'chat.renameThreadAria': 'Rinomina la conversazione {title}',
   'chat.hideSidebar': 'Nascondi barra laterale',
   'chat.showSidebar': 'Mostra barra laterale',
   'chat.searchThreads': 'Cerca conversazioni',
@@ -2898,6 +2901,7 @@ const messages: TranslationMap = {
   'onboarding.skills.status.unavailable': 'Non disponibile',
   'composio.statusUnavailable': 'Stato non disponibile',
   'composio.authExpired': 'Autenticazione scaduta',
+  'composio.authRevoked': 'Accesso revocato',
   'composio.reconnect': 'Riconnetti',
   'composio.expiredAuthorization': '{name} autorizzazione scaduta',
   'composio.expiredDescription':
@@ -3162,6 +3166,8 @@ const messages: TranslationMap = {
     'Scegli un metodo qui sotto: collega il tuo account tramite OpenHuman, installa il bot con OAuth oppure incolla il tuo token bot dal portale sviluppatori di Discord.',
   'channels.connectHelp.telegram':
     'Scegli un metodo qui sotto: scrivi al bot gestito di OpenHuman per collegarlo, oppure incolla il tuo token bot da @BotFather.',
+  'channels.connectHelp.imessage':
+    "Nessuna credenziale richiesta. OpenHuman legge il database locale di Messaggi: concedi l'Accesso completo al disco in Impostazioni di Sistema > Privacy e sicurezza > Accesso completo al disco, poi riavvia l'app.",
   'channels.connectHelp.slackNote':
     'Cerchi Slack? Slack si connette come app in Connessioni → OAuth, non come canale di messaggistica qui.',
   'channels.web.displayName': 'Web',
@@ -4210,7 +4216,8 @@ const messages: TranslationMap = {
   'pages.settings.features.notifications': 'Notifiche',
   'pages.settings.features.notificationsDesc': 'Descrizione notifiche',
   'pages.settings.features.tools': 'Strumenti',
-  'pages.settings.features.toolsDesc': 'Descrizione strumenti',
+  'pages.settings.features.toolsDesc':
+    'Attiva o disattiva i singoli strumenti dell’agente, raggruppati per categoria.',
   'pages.settings.featuresSection.title': 'Funzionalità',
   'privacy.dataKind.credentials': 'Credenziali',
   'privacy.dataKind.derived': 'Derivati',
@@ -4291,7 +4298,7 @@ const messages: TranslationMap = {
   'rewards.coupon.subtitle': 'Sottotitolo',
   'rewards.coupon.title': 'Riscatta un codice coupon',
   'rewards.referralSection.activity': 'Attività referral',
-  'rewards.referralSection.apply': 'Applicazione…',
+  'rewards.referralSection.apply': 'Applica',
   'rewards.referralSection.applying': 'Applicazione…',
   'rewards.referralSection.colReferredUser': 'Utente referenziato',
   'rewards.referralSection.colReward': 'Premio',

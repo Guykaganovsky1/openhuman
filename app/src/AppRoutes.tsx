@@ -101,9 +101,10 @@ const AppRoutes = ({ location }: AppRoutesProps = {}) => {
       {/* Workflows — the `flows::` domain's discoverable list hub (issue
           B5a) plus the read-only Workflow Canvas (issue B5b.1) at
           `/flows/:id`. Distinct from the legacy SKILL.md `/workflows/*`
-          Skill routes below (create/run); the bare `/workflows` and
-          `/routines` slugs now redirect here (to `/flows`) since Workflows is
-          a first-level module. Not a tab-level route (unlike `/flows` itself,
+          Skill routes below (create/run); the bare `/routines` slug now
+          redirects here (to `/flows`) since Workflows is a first-level module,
+          while `/workflows` still renders the legacy SKILL.md hub (`Activity`)
+          and does NOT redirect. Not a tab-level route (unlike `/flows` itself,
           `/flows/:id` isn't reached from the BottomTabBar), so
           `navigation.spec.ts`'s ROUTES table needs no change. Full editing
           (B5b.2+) and the agent-proposal surface (B4) are separate, later
@@ -128,6 +129,17 @@ const AppRoutes = ({ location }: AppRoutesProps = {}) => {
             <FlowCanvasDraftPage />
           </ProtectedRoute>
         }
+      />
+      {/* The Workflows sub-pages (Runs / Discoveries / Schedules) are `?view=`
+          states of `/flows`, not paths — but `/flows/discoveries` is the
+          address the page's own source comment names, so people type it. Left
+          unrouted it was captured by `/flows/:id`, which called
+          `flows_get('discoveries')` and showed "could not be found" over a core
+          error. Declared BEFORE `/flows/:id` for the same reason as
+          `/flows/draft` above. */}
+      <Route
+        path="/flows/discoveries"
+        element={<Navigate to="/flows?view=discoveries" replace />}
       />
       <Route
         path="/flows/:id"

@@ -12,6 +12,11 @@ import { useT } from '../../lib/i18n/I18nContext';
 const CHANNEL_HELP_KEY: Record<string, string> = {
   discord: 'channels.connectHelp.discord',
   telegram: 'channels.connectHelp.telegram',
+  // iMessage needs no credentials, but it reads the local `chat.db`, which
+  // macOS gates behind Full Disk Access. Without that grant the channel
+  // connects and then silently receives nothing, so the requirement belongs on
+  // the setup sheet rather than in a support thread.
+  imessage: 'channels.connectHelp.imessage',
 };
 
 interface ChannelConnectHelpProps {

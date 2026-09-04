@@ -25,13 +25,36 @@ fn to_json<T: serde::Serialize>(outcome: RpcOutcome<T>) -> Result<Value, String>
 pub(super) fn handle_browse(params: Map<String, Value>) -> ControllerFuture {
     Box::pin(async move {
         let p = deserialize_params::<BrowseParams>(params)?;
+        let paged = p.is_paged();
         tracing::debug!(
             force_refresh = p.force_refresh,
+            query = ?p.query,
+            sources = ?p.sources,
+            offset = ?p.offset,
+            limit = ?p.limit,
+            paged,
             "[skill_registry][rpc] browse"
         );
-        let entries = ops::browse_catalog(p.force_refresh).await?;
-        tracing::debug!(count = entries.len(), "[skill_registry][rpc] browse result");
-        to_json(RpcOutcome::new(BrowseResult { entries }, Vec::new()))
+        let page = ops::browse_catalog_page(
+            p.force_refresh,
+            p.query.as_deref(),
+            p.sources.as_deref(),
+            p.offset.unwrap_or(0),
+            p.limit,
+        )
+        .await?;
+        tracing::debug!(
+            count = page.entries.len(),
+            total = page.total,
+            "[skill_registry][rpc] browse result"
+        );
+        to_json(RpcOutcome::new(
+            BrowseResult {
+                entries: page.entries,
+                total: paged.then_some(page.total),
+            },
+            Vec::new(),
+        ))
     })
 }
 

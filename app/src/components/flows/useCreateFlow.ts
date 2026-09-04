@@ -1,10 +1,10 @@
 /**
  * `useCreateFlow` (Phase 4a/4c) — shared create-and-open logic for the
  * new-workflow chooser, the template gallery, and the Workflows empty state.
- * Persists a candidate `WorkflowGraph` via `flows_create` and, on success,
- * navigates into the editable canvas at `/flows/:id`. Single-flight: a second
- * call while one is in flight is ignored, so a double-click can't create two
- * flows.
+ * Persists a candidate `WorkflowGraph` via `flows_create`, forces it disabled
+ * (see below) and, on success, navigates into the editable canvas at
+ * `/flows/:id`. Single-flight: a second call while one is in flight is
+ * ignored, so a double-click can't create two flows.
  *
  * `busyKey` identifies which affordance is mid-create (a template id, or
  * `'blank'` for start-from-scratch) so a caller can show the spinner on just
@@ -18,7 +18,7 @@ import { useNavigate } from 'react-router-dom';
 
 import type { WorkflowGraph } from '../../lib/flows/types';
 import { useT } from '../../lib/i18n/I18nContext';
-import { createFlow } from '../../services/api/flowsApi';
+import { createFlow, setFlowEnabled } from '../../services/api/flowsApi';
 
 const log = createDebug('app:flows:create');
 
@@ -53,6 +53,34 @@ export function useCreateFlow(): UseCreateFlow {
       setError(null);
       try {
         const flow = await createFlow(name, graph);
+        // Born disabled. `flows_create` persists a manual-trigger graph
+        // `enabled: true` (B29 Rule 1 only force-disables automatic triggers),
+        // so "Start from scratch" and every template card armed a workflow the
+        // user had not written a single node into yet, before the canvas even
+        // opened. Arming is the user's call, made from the canvas after a save.
+        //
+        // Two writes, not one transaction — the same shape the agent-side
+        // `create_workflow` tool uses (`flows/builder_tools_part_02.rs`), and
+        // with the same brief window where the row is enabled in between.
+        // `flows_create` takes no `enabled` parameter, so this is the only way
+        // to express it from a client.
+        //
+        // A failed disable is NOT a failed create: the flow exists, and
+        // reporting `createError` here would leave an armed orphan behind a
+        // message saying nothing was created. Log it and still open the canvas,
+        // where the enable toggle shows the flow's real state.
+        if (flow.enabled) {
+          log('create: force-disabling the new flow id=%s (born enabled)', flow.id);
+          try {
+            await setFlowEnabled(flow.id, false);
+          } catch (disableErr) {
+            log(
+              'create: could not disable the new flow id=%s — it remains ENABLED err=%o',
+              flow.id,
+              disableErr
+            );
+          }
+        }
         log('create: created id=%s — navigating to canvas', flow.id);
         navigate(`/flows/${flow.id}`);
       } catch (err) {

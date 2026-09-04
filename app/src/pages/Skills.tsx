@@ -109,6 +109,8 @@ function composioStatusLabel(
       return t('channels.status.connecting');
     case 'expired':
       return t('composio.authExpired');
+    case 'revoked':
+      return t('composio.authRevoked');
     case 'error':
       return t('common.error');
     default:
@@ -123,6 +125,7 @@ function composioStatusColor(connection: ComposioConnection | undefined): string
     case 'pending':
       return 'text-amber-600 dark:text-amber-300';
     case 'expired':
+    case 'revoked':
       return 'text-coral-600 dark:text-coral-300';
     case 'error':
       return 'text-coral-600 dark:text-coral-300';
@@ -139,6 +142,7 @@ function composioSortRank(connection: ComposioConnection | undefined): number {
     case 'pending':
       return 1;
     case 'expired':
+    case 'revoked':
       return 2;
     case 'error':
       return 3;
@@ -184,7 +188,7 @@ function ComposioConnectorTile({
       ? t('skills.configure')
       : state === 'pending'
         ? t('skills.connect')
-        : state === 'expired'
+        : state === 'expired' || state === 'revoked'
           ? t('composio.reconnect')
           : state === 'error'
             ? t('common.retry')
@@ -192,7 +196,9 @@ function ComposioConnectorTile({
 
   const isConnected = state === 'connected' && !isPreview;
   const isPending = state === 'pending';
-  const isExpired = state === 'expired';
+  // A revoked grant wears the same "needs re-authorizing" treatment as an
+  // expired one: coral tile, a status line, and a "Reconnect" call to action.
+  const isExpired = state === 'expired' || state === 'revoked';
   const isError = state === 'error' || hasComposioError;
 
   const handleClick = () => {
@@ -599,6 +605,16 @@ export default function Skills() {
   );
   const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const voiceStatus = useVoiceSkillStatus();
+
+  // A channel setup sheet belongs to the Messaging tab. It is rendered outside
+  // the tab body (it is a modal), so switching tabs used to leave it floating
+  // over the MCP or Apps grid with no relationship to what was underneath.
+  // Keyed on `activeTab` rather than folded into `handleTabChange` so browser
+  // back/forward — which changes the tab through the URL, never through that
+  // callback — closes it too.
+  useEffect(() => {
+    setChannelModalDef(null);
+  }, [activeTab]);
 
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const addToast = useCallback((toast: Omit<ToastNotification, 'id'>) => {

@@ -85,6 +85,17 @@ describe('TranscriptRow', () => {
     expect(onCopy).toHaveBeenCalledWith('m-1', 'Hello there');
   });
 
+  it('labels the copy control by sender: "response" for the agent, "message" for the user', () => {
+    const { unmount } = renderRow();
+    expect(screen.getByRole('button', { name: 'Copy response' })).toBeInTheDocument();
+    unmount();
+
+    // A user turn is not a response, so the shared control must not say so.
+    renderRow({ msg: makeMessage({ id: 'm-2', sender: 'user', content: 'A question?' }) });
+    expect(screen.getByRole('button', { name: 'Copy message' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy response' })).toBeNull();
+  });
+
   it('shows the reaction affordance only on the latest visible turn', () => {
     const { unmount } = renderRow({ isLatestVisible: false });
     expect(screen.queryByRole('button', { name: /reaction/i })).toBeNull();

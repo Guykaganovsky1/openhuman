@@ -355,9 +355,12 @@ describe('McpServersTab', () => {
 
     await renderAndWaitForLoad();
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    // `transport` is no longer sent. The core takes the parameter and ignores
+    // it ("accepted and ignored: the catalog no longer filters by it",
+    // `src/openhuman/mcp/registry/ops.rs`), so sending it made the toggles look
+    // wired while changing nothing.
     expect(mockRegistrySearch).toHaveBeenLastCalledWith({
       query: undefined,
-      transport: undefined,
       page: 2,
       page_size: 30,
     });
@@ -367,6 +370,8 @@ describe('McpServersTab', () => {
     fireEvent.change(searchInput, { target: { value: 'git' } });
     act(() => vi.advanceTimersByTime(100));
     fireEvent.change(searchInput, { target: { value: 'github' } });
+    // Toggling transport is a client-side refilter and must NOT enter the fetch
+    // key — it used to re-run an identical query against the core.
     fireEvent.click(screen.getByRole('button', { name: 'Hosted' }));
 
     act(() => vi.advanceTimersByTime(299));
@@ -377,12 +382,7 @@ describe('McpServersTab', () => {
     });
 
     expect(mockRegistrySearch).toHaveBeenCalledTimes(1);
-    expect(mockRegistrySearch).toHaveBeenCalledWith({
-      query: 'github',
-      transport: 'hosted',
-      page: 1,
-      page_size: 30,
-    });
+    expect(mockRegistrySearch).toHaveBeenCalledWith({ query: 'github', page: 1, page_size: 30 });
   });
 
   it('coalesces StrictMode fetches for each stable debounced catalog filter', async () => {
@@ -390,11 +390,8 @@ describe('McpServersTab', () => {
     mockStatus.mockResolvedValue([]);
     const initialRequest = deferred<{ servers: never[]; page: number; total_pages: number }>();
     const changedRequest = deferred<{ servers: never[]; page: number; total_pages: number }>();
-    mockRegistrySearch.mockImplementation(
-      ({ query, transport }: { query?: string; transport?: string }) =>
-        query === 'github' && transport === 'hosted'
-          ? changedRequest.promise
-          : initialRequest.promise
+    mockRegistrySearch.mockImplementation(({ query }: { query?: string }) =>
+      query === 'github' ? changedRequest.promise : initialRequest.promise
     );
 
     render(
@@ -421,7 +418,6 @@ describe('McpServersTab', () => {
     expect(mockRegistrySearch).toHaveBeenCalledTimes(2);
     expect(mockRegistrySearch).toHaveBeenLastCalledWith({
       query: 'github',
-      transport: 'hosted',
       page: 1,
       page_size: 30,
     });
@@ -535,47 +531,49 @@ describe('McpServersTab', () => {
     expect(screen.queryByText('Install Cool MCP')).not.toBeInTheDocument();
   });
 
-  it('re-queries the core with a transport filter when the Stdio/Hosted pills are toggled', async () => {
+  it('filters catalog rows client-side when the Stdio/Hosted pills are toggled', async () => {
     mockInstalledList.mockResolvedValue([]);
     mockStatus.mockResolvedValue([]);
-    // Transport filtering now happens in the core: the mock answers per the
-    // `transport` param it receives, and toggling a pill re-queries.
+    // The core does NOT filter by transport — `mcp_clients_registry_search`
+    // takes the parameter and drops it. This mock therefore returns the same
+    // two rows whatever it is asked, which is what the real core does; the
+    // filtering has to happen here, over `is_deployed`, the very field the
+    // per-row Stdio/Hosted badge is already rendered from.
     const STDIO = { qualified_name: 'a/stdio-srv', display_name: 'Stdio Srv', is_deployed: false };
     const HOSTED = {
       qualified_name: 'b/hosted-srv',
       display_name: 'Hosted Srv',
       is_deployed: true,
     };
-    mockRegistrySearch.mockImplementation((params: { transport?: string }) => {
-      const servers =
-        params.transport === 'stdio'
-          ? [STDIO]
-          : params.transport === 'hosted'
-            ? [HOSTED]
-            : [STDIO, HOSTED];
-      return Promise.resolve({ servers, page: 1, total_pages: 1 });
-    });
+    mockRegistrySearch.mockResolvedValue({ servers: [STDIO, HOSTED], page: 1, total_pages: 1 });
 
     await renderAndWaitForLoad();
     vi.useRealTimers();
 
     await waitFor(() => screen.getByText('Hosted Srv'));
     expect(screen.getByText('Stdio Srv')).toBeInTheDocument();
+    const callsAfterLoad = mockRegistrySearch.mock.calls.length;
 
-    // Toggle "Stdio" → core is re-queried with transport:'stdio'; hosted drops.
+    // Toggle "Stdio" → the hosted row drops out of the table.
     fireEvent.click(screen.getByRole('button', { name: 'Stdio' }));
-    await waitFor(() =>
-      expect(mockRegistrySearch).toHaveBeenCalledWith(
-        expect.objectContaining({ transport: 'stdio' })
-      )
-    );
     await waitFor(() => expect(screen.queryByText('Hosted Srv')).not.toBeInTheDocument());
     expect(screen.getByText('Stdio Srv')).toBeInTheDocument();
 
-    // Switch to "Hosted" → transport:'hosted'; stdio drops.
+    // Switch to "Hosted" → the stdio row drops out instead.
     fireEvent.click(screen.getByRole('button', { name: 'Hosted' }));
     await waitFor(() => expect(screen.getByText('Hosted Srv')).toBeInTheDocument());
     expect(screen.queryByText('Stdio Srv')).not.toBeInTheDocument();
+
+    // Pressing "Hosted" again clears the filter: both rows are back.
+    fireEvent.click(screen.getByRole('button', { name: 'Hosted' }));
+    await waitFor(() => expect(screen.getByText('Stdio Srv')).toBeInTheDocument());
+    expect(screen.getByText('Hosted Srv')).toBeInTheDocument();
+
+    // None of that re-queried the core — the rows were already in hand.
+    expect(mockRegistrySearch.mock.calls.length).toBe(callsAfterLoad);
+    expect(mockRegistrySearch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ transport: expect.anything() })
+    );
   });
 
   it('renders every returned row and badges only the official one, with no Show all toggle', async () => {

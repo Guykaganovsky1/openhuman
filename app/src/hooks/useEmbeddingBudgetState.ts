@@ -26,7 +26,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { useCoreState } from '../providers/CoreStateProvider';
 import { creditsApi, type TeamUsage } from '../services/api/creditsApi';
-import { loadEmbeddingsSettings } from '../services/api/embeddingsApi';
+import { type EmbeddingsSettings, loadEmbeddingsSettings } from '../services/api/embeddingsApi';
 import { CoreRpcError } from '../services/coreRpcClient';
 import { subscribeUsageRefresh } from './usageRefresh';
 import { useUsageState } from './useUsageState';
@@ -121,6 +121,33 @@ function deriveBudget(usage: TeamUsage): DerivedBudget {
  */
 const PROVIDER_RECHECK_MS = 60_000;
 
+/**
+ * `NoticeCenter` mounts two independent consumers of this hook — the in-app
+ * notice list (`useAppNotices`) and the OS-notification hook
+ * (`useEmbeddingBudgetNativeNotice`) — and both read the provider on the same
+ * tick, so every `openhuman.embeddings_get_settings` went out as a duplicate
+ * pair. Sharing the in-flight promise collapses simultaneous readers onto one
+ * RPC. A read that starts after the previous one settled still hits the core,
+ * so nothing is cached and the recheck cadence is unchanged.
+ */
+let inFlightSettings: Promise<EmbeddingsSettings> | null = null;
+
+function loadEmbeddingsSettingsShared(): Promise<EmbeddingsSettings> {
+  if (inFlightSettings) return inFlightSettings;
+  const pending = loadEmbeddingsSettings();
+  inFlightSettings = pending;
+  const release = () => {
+    if (inFlightSettings === pending) inFlightSettings = null;
+  };
+  pending.then(release, release);
+  return pending;
+}
+
+/** Test seam — drops any promise still recorded as in flight. */
+export function __resetEmbeddingSettingsShareForTests(): void {
+  inFlightSettings = null;
+}
+
 export function useEmbeddingBudgetState(): EmbeddingBudgetState {
   const { snapshot } = useCoreState();
   const isAuthenticated = snapshot.auth.isAuthenticated;
@@ -166,7 +193,7 @@ export function useEmbeddingBudgetState(): EmbeddingBudgetState {
     console.debug(`${LOG} provider read start (hasUsage=${hasUsage} usageLoading=${usageLoading})`);
     void (async () => {
       try {
-        const settings = await loadEmbeddingsSettings();
+        const settings = await loadEmbeddingsSettingsShared();
         if (cancelled) return;
         // Gate on the *effective* embedder, not the picker setting. The core
         // resolves local Ollama from the Local AI "Memory embeddings" toggle or

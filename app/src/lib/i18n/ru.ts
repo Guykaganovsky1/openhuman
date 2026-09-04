@@ -727,6 +727,7 @@ const messages: TranslationMap = {
   'chat.startConversation': 'Начни разговор',
   'chat.regenerate': 'Сгенерировать снова',
   'chat.copyResponse': 'Скопировать ответ',
+  'chat.copyMessage': 'Скопировать сообщение',
   'chat.citations': 'Источники',
   'chat.toolUsed': 'Использован инструмент',
   'scope.legacy': 'Устаревшее',
@@ -2346,9 +2347,11 @@ const messages: TranslationMap = {
   'chat.noThreads': 'Чатов пока нет',
   'chat.noLabelThreads': 'Нет чатов «{label}»',
   'chat.deleteThread': 'Удалить чат',
+  'chat.deleteThreadAria': 'Удалить чат {title}',
   'chat.deleteThreadConfirm': 'Удалить «{title}»?',
   'chat.untitledThread': 'Чат без названия',
   'chat.editThreadTitle': 'Изменить название ветки',
+  'chat.renameThreadAria': 'Переименовать чат {title}',
   'chat.hideSidebar': 'Скрыть боковую панель',
   'chat.showSidebar': 'Показать боковую панель',
   'chat.searchThreads': 'Поиск бесед',
@@ -2869,6 +2872,7 @@ const messages: TranslationMap = {
   'onboarding.skills.status.unavailable': 'Недоступно',
   'composio.statusUnavailable': 'Статус недоступен',
   'composio.authExpired': 'Срок авторизации истёк',
+  'composio.authRevoked': 'Доступ отозван',
   'composio.reconnect': 'Переподключить',
   'composio.expiredAuthorization': 'Срок действия авторизации {name} истек',
   'composio.expiredDescription':
@@ -3133,6 +3137,8 @@ const messages: TranslationMap = {
     'Выберите способ ниже: привяжите аккаунт через OpenHuman, установите бота через OAuth или вставьте собственный токен бота из портала разработчика Discord.',
   'channels.connectHelp.telegram':
     'Выберите способ ниже: напишите управляемому боту OpenHuman, чтобы привязать его, или вставьте собственный токен бота от @BotFather.',
+  'channels.connectHelp.imessage':
+    'Учётные данные не нужны. OpenHuman читает локальную базу «Сообщений», поэтому предоставьте ему полный доступ к диску в «Системных настройках» > «Конфиденциальность и безопасность» > «Полный доступ к диску» и перезапустите приложение.',
   'channels.connectHelp.slackNote':
     'Ищете Slack? Slack подключается как приложение в разделе Подключения → OAuth, а не как канал сообщений здесь.',
   'channels.web.displayName': 'Интернет',
@@ -4182,7 +4188,8 @@ const messages: TranslationMap = {
   'pages.settings.features.notifications': 'Уведомления',
   'pages.settings.features.notificationsDesc': 'Описание уведомлений',
   'pages.settings.features.tools': 'Инструменты',
-  'pages.settings.features.toolsDesc': 'Описание инструментов',
+  'pages.settings.features.toolsDesc':
+    'Включайте и отключайте отдельные инструменты агента, сгруппированные по категориям.',
   'pages.settings.featuresSection.title': 'Функции',
   'privacy.dataKind.credentials': 'Учётные данные',
   'privacy.dataKind.derived': 'Производные данные',
@@ -4264,7 +4271,7 @@ const messages: TranslationMap = {
   'rewards.coupon.subtitle': 'Подзаголовок',
   'rewards.coupon.title': 'Активировать промокод',
   'rewards.referralSection.activity': 'Реферальная активность',
-  'rewards.referralSection.apply': 'Применение…',
+  'rewards.referralSection.apply': 'Применить',
   'rewards.referralSection.applying': 'Применение…',
   'rewards.referralSection.colReferredUser': 'Приглашённый пользователь',
   'rewards.referralSection.colReward': 'Награда',

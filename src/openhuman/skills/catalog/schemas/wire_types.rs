@@ -12,6 +12,29 @@ use crate::openhuman::skills::ops_types::WorkflowScope;
 pub(super) struct BrowseParams {
     #[serde(default)]
     pub(super) force_refresh: bool,
+    /// Case-insensitive substring filter over name/description/tags/category/author.
+    #[serde(default)]
+    pub(super) query: Option<String>,
+    /// Restrict to these upstream sources (case-insensitive). Empty list = no filter.
+    #[serde(default)]
+    pub(super) sources: Option<Vec<String>>,
+    #[serde(default)]
+    pub(super) offset: Option<usize>,
+    /// Page size, clamped to `ops::MAX_BROWSE_LIMIT`. Absent = the whole
+    /// (filtered) catalog, which is the pre-paging behaviour.
+    #[serde(default)]
+    pub(super) limit: Option<usize>,
+}
+
+impl BrowseParams {
+    /// True when the caller asked for a page/filter rather than the legacy
+    /// "give me everything" browse. Decides whether `total` is emitted.
+    pub(super) fn is_paged(&self) -> bool {
+        self.query.is_some()
+            || self.sources.is_some()
+            || self.offset.is_some()
+            || self.limit.is_some()
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -39,6 +62,11 @@ pub(super) struct UninstallParams {
 #[derive(Debug, Serialize)]
 pub(super) struct BrowseResult {
     pub(super) entries: Vec<CatalogEntry>,
+    /// Size of the filtered set this page was cut from. Omitted entirely for a
+    /// legacy (no query/sources/offset/limit) browse so that payload stays
+    /// byte-identical to what pre-paging callers already parse.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(super) total: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]

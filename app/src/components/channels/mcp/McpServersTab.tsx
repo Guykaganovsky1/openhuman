@@ -268,12 +268,16 @@ const McpServersTab = () => {
   // Unified search + filter
   const [searchQuery, setSearchQuery] = useState('');
   const [activeChip, setActiveChip] = useState<FilterChip>('all');
-  // Secondary classification filter over catalog rows: by transport.
+  // Secondary classification filter over catalog rows: by transport. Applied
+  // CLIENT-SIDE over the fetched rows, using the very field `TransportBadge`
+  // already renders each row from. The core takes a `transport` param and
+  // ignores it ("accepted and ignored: the catalog no longer filters by it",
+  // `src/openhuman/mcp/registry/ops.rs`), so sending it changed nothing and the
+  // toggles were inert. It is therefore no longer sent, and no longer part of
+  // the fetch key — flipping a toggle refilters what is on screen instead of
+  // re-running an identical query.
   const [transportFilter, setTransportFilter] = useState<'all' | Transport>('all');
-  const catalogFilters = useMemo(
-    () => ({ query: searchQuery, transport: transportFilter }),
-    [searchQuery, transportFilter]
-  );
+  const catalogFilters = useMemo(() => ({ query: searchQuery }), [searchQuery]);
   const debouncedCatalogFilters = useDebouncedValue(catalogFilters, DEBOUNCE_MS);
 
   // Registry catalog results
@@ -310,13 +314,12 @@ const McpServersTab = () => {
   }, []);
 
   const fetchCatalog = useCallback(
-    async (query: string, transport: 'all' | Transport, page: number, append: boolean) => {
+    async (query: string, page: number, append: boolean) => {
       const seq = ++requestSeqRef.current;
       setCatalogLoading(true);
       try {
         const result = await mcpClientsApi.registrySearch({
           query: query || undefined,
-          transport: transport === 'all' ? undefined : transport,
           page,
           page_size: PAGE_SIZE,
         });
@@ -349,16 +352,16 @@ const McpServersTab = () => {
     Promise.all([loadInstalled(), fetchStatuses()]).finally(() => setLoading(false));
   }, [loadInstalled, fetchStatuses]);
 
-  // Fetch catalog (page 1) on mount and whenever the query or transport filter
-  // changes. Search + transport now run in the core over the cached full
-  // catalog, so changing either re-queries from the top.
+  // Fetch catalog (page 1) on mount and whenever the query changes. Search runs
+  // in the core over the cached full catalog, so a new query re-queries from
+  // the top; the transport toggle is a client-side refilter and never refetches.
   useEffect(() => {
     const lastFetch = lastEffectFetchRef.current;
     if (lastFetch?.filters === debouncedCatalogFilters && lastFetch.fetchCatalog === fetchCatalog) {
       return;
     }
     lastEffectFetchRef.current = { filters: debouncedCatalogFilters, fetchCatalog };
-    void fetchCatalog(debouncedCatalogFilters.query, debouncedCatalogFilters.transport, 1, false);
+    void fetchCatalog(debouncedCatalogFilters.query, 1, false);
   }, [debouncedCatalogFilters, fetchCatalog]);
 
   // Poll status
@@ -431,12 +434,7 @@ const McpServersTab = () => {
   );
 
   const handleLoadMore = () => {
-    void fetchCatalog(
-      debouncedCatalogFilters.query,
-      debouncedCatalogFilters.transport,
-      catalogPage + 1,
-      true
-    );
+    void fetchCatalog(debouncedCatalogFilters.query, catalogPage + 1, true);
   };
 
   // Bulk lifecycle actions for the health toolbar. One failure doesn't abort the
@@ -489,15 +487,20 @@ const McpServersTab = () => {
     );
   }, [servers, searchQuery]);
 
-  // Catalog rows minus already-installed servers. Search + transport filtering
-  // now happen in the core over the cached full catalog (so relevance and
-  // pagination are accurate); the only thing left to do client-side is hide
-  // servers the user already installed. Memoized so the status poll doesn't
-  // recompute it.
+  // Catalog rows minus already-installed servers, minus rows the transport
+  // toggle excludes. Search paging happens in the core over the cached full
+  // catalog (so relevance and pagination are accurate); the transport
+  // classification is a pure function of the row (`transportOf`, the same one
+  // `TransportBadge` renders from), so it is applied here — the core discards
+  // the `transport` param. Memoized so the status poll doesn't recompute it.
   const availableCatalog = useMemo(() => {
     const installedNames = new Set(servers.map(s => s.qualified_name));
-    return catalogServers.filter(s => !installedNames.has(s.qualified_name));
-  }, [catalogServers, servers]);
+    return catalogServers.filter(
+      s =>
+        !installedNames.has(s.qualified_name) &&
+        (transportFilter === 'all' || transportOf(s) === transportFilter)
+    );
+  }, [catalogServers, servers, transportFilter]);
 
   const showRegistry = activeChip === 'all' || activeChip === 'registry';
 
@@ -749,14 +752,7 @@ const McpServersTab = () => {
             <Button
               variant="tertiary"
               size="xs"
-              onClick={() =>
-                void fetchCatalog(
-                  debouncedCatalogFilters.query,
-                  debouncedCatalogFilters.transport,
-                  1,
-                  false
-                )
-              }
+              onClick={() => void fetchCatalog(debouncedCatalogFilters.query, 1, false)}
               className="text-primary-600 dark:text-primary-400 hover:underline">
               {t('common.retry')}
             </Button>

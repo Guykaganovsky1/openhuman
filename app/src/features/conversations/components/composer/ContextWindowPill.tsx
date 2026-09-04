@@ -87,15 +87,23 @@ export function ContextWindowPill({ usage }: { usage: ContextUsage }) {
               aria-label={t('conversations.composer.context.title')}
               className="text-muted-foreground hover:text-foreground hover:bg-muted flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors">
               <GaugeIcon className="size-3.5" />
+              {/* With no known limit there is no fraction to state: the old
+                  `0/—` read as a broken number rather than as missing data. The
+                  used count alone is the honest reading, and the meter (which
+                  can only ever be empty without a denominator) goes with it. */}
               <span className="tabular-nums">
-                {compact(usage.used)}/{limitKnown ? compact(usage.limit) : '—'}
+                {limitKnown
+                  ? `${compact(usage.used)}/${compact(usage.limit)}`
+                  : compact(usage.used)}
               </span>
-              <span className="bg-muted h-1 w-8 overflow-hidden rounded-full">
-                <span
-                  className={`block h-full rounded-full ${tone}`}
-                  style={{ width: limitKnown ? `${Math.max(2, ratio * 100)}%` : '0%' }}
-                />
-              </span>
+              {limitKnown && (
+                <span className="bg-muted h-1 w-8 overflow-hidden rounded-full">
+                  <span
+                    className={`block h-full rounded-full ${tone}`}
+                    style={{ width: `${Math.max(2, ratio * 100)}%` }}
+                  />
+                </span>
+              )}
             </button>
           }
         />

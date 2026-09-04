@@ -14,6 +14,7 @@ import { renderChannelIcon } from './channelIcon';
 import CredentialChannelConfig from './CredentialChannelConfig';
 import DiscordConfig from './DiscordConfig';
 import TelegramConfig from './TelegramConfig';
+import WebChannelConfig from './WebChannelConfig';
 import YuanbaoConfig from './YuanbaoConfig';
 
 interface ChannelSetupModalProps {
@@ -26,6 +27,17 @@ function renderChannelConfig(
   channelId: ChannelType,
   t: (key: string, fallback?: string) => string
 ) {
+  // iMessage is a real channel the core ships, but the frontend `ChannelType`
+  // union predates it and does not list it, so it cannot be a `case` arm here.
+  // It is matched on the raw definition id instead: widening the union would
+  // ripple through every `Record<ChannelType, …>` consumer for no behavioural
+  // gain. Its definition declares one optional `allowed_contacts` field plus
+  // the "grant Full Disk Access" instruction, and `CredentialChannelConfig`
+  // renders whatever the core declares; it fell through to the empty
+  // "Configuration for iMessage" shell before.
+  if (definition.id === 'imessage') {
+    return <CredentialChannelConfig definition={definition} />;
+  }
   switch (channelId) {
     case 'telegram':
       return <TelegramConfig definition={definition} />;
@@ -40,6 +52,10 @@ function renderChannelConfig(
     case 'dingtalk':
     case 'email':
       return <CredentialChannelConfig definition={definition} />;
+    // Web has genuinely nothing to configure — it is the built-in chat surface
+    // and is always available. Say that instead of rendering an empty sheet.
+    case 'web':
+      return <WebChannelConfig definition={definition} />;
     default:
       return (
         <p className="py-4 text-sm text-content-faint">

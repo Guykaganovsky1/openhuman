@@ -29,6 +29,7 @@ import { Button } from '@/components/assistant-ui/ui/button';
 import { Skeleton } from '@/components/assistant-ui/ui/skeleton';
 import ModelQualityPill from '@/components/chat/ModelQualityPill';
 import { useAuiEditCapabilities } from '@/features/conversations/components/aui/auiThreadState';
+import { useT } from '@/lib/i18n/I18nContext';
 import {
   ActionBarMorePrimitive,
   ActionBarPrimitive,
@@ -899,6 +900,10 @@ const UserMessage: FC = () => {
 };
 
 const UserActionBar: FC = () => {
+  // This bar sits on the *user's* own turn, so "Copy response" was wrong on the
+  // face of it. The label is the one string here that names the wrong thing, so
+  // it comes from `useT()` while the rest of this ported file stays as-is.
+  const { t } = useT();
   // Edit is offered only when the bound runtime can honour it. The
   // external-store adapter supplies `onNew` / `onCancel` and neither `onEdit`
   // nor `setMessages`, so assistant-ui reports `edit: false` and
@@ -928,7 +933,7 @@ const UserActionBar: FC = () => {
       autohide="not-last"
       className="aui-user-action-bar-root flex flex-col items-end">
       <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip="Copy response" title="Copy response">
+        <TooltipIconButton tooltip={t('chat.copyMessage')} title={t('chat.copyMessage')}>
           <CopyIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Copy>

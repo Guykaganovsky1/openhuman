@@ -203,6 +203,32 @@ describe('McpServerPanel — binary path error', () => {
       expect(screen.getByText(/OpenHuman binary not found/i)).toBeInTheDocument();
     });
   });
+
+  test('the snippet keeps a usable path and never carries the not-found sentence', async () => {
+    hoisted.invoke.mockRejectedValue(new Error('binary not found on disk'));
+    const writeText = setupClipboard();
+
+    vi.resetModules();
+    const Panel = await importPanel();
+    renderWithProviders(<Panel />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/OpenHuman binary not found/i)).toBeInTheDocument();
+    });
+
+    const preEl = document.querySelector('pre');
+    expect(preEl).not.toBeNull();
+    const content = preEl!.textContent ?? '';
+    expect(content).toContain('/path/to/openhuman-core');
+    expect(content).not.toContain('OpenHuman binary not found');
+
+    // The Copy button hands out the same text, so it must be valid JSON.
+    fireEvent.click(screen.getByRole('button', { name: /Copy to Clipboard/i }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const written: string = writeText.mock.calls[0][0];
+    expect(written).not.toContain('OpenHuman binary not found');
+    expect(JSON.parse(written).mcpServers.openhuman.command).toBe('/path/to/openhuman-core');
+  });
 });
 
 describe('McpServerPanel — open config file', () => {

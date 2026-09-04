@@ -14,6 +14,19 @@ const MODE_BADGE_VARIANT: Record<string, 'success' | 'warning' | 'neutral' | 'da
   declined: 'danger',
 };
 
+/**
+ * The core reports `StorageMode` in snake_case (`os_keyring`, `local_encrypted`,
+ * … — see `src/openhuman/security/keyring_consent/types.rs`) while the i18n
+ * table keys these labels in camelCase, so interpolating the raw value rendered
+ * the key itself for every mode but `declined`. Map explicitly.
+ */
+const MODE_LABEL_KEY: Record<string, string> = {
+  os_keyring: 'osKeychain',
+  local_encrypted: 'encryptedFile',
+  consent_pending: 'consentPending',
+  declined: 'declined',
+};
+
 const SecurityPanel = () => {
   const { snapshot } = useCoreState();
   const { t } = useT();
@@ -23,6 +36,8 @@ const SecurityPanel = () => {
   const keyringStatus = snapshot.keyringStatus;
   const modeBadgeVariant =
     MODE_BADGE_VARIANT[keyringStatus.activeMode] ?? MODE_BADGE_VARIANT.consent_pending;
+  // Unknown mode → fall back to the raw value rather than swallowing it.
+  const modeLabelKey = MODE_LABEL_KEY[keyringStatus.activeMode] ?? keyringStatus.activeMode;
 
   const handleRetryProbe = async () => {
     setIsLoading(true);
@@ -58,9 +73,7 @@ const SecurityPanel = () => {
             control={
               <div className="flex items-center gap-3">
                 <SettingsBadge variant={modeBadgeVariant}>
-                  {t(
-                    `keyring.settings.mode.${keyringStatus.activeMode}` as Parameters<typeof t>[0]
-                  )}
+                  {t(`keyring.settings.mode.${modeLabelKey}` as Parameters<typeof t>[0])}
                 </SettingsBadge>
                 <span className="text-xs text-content-muted">
                   {t('keyring.settings.backend')}: {keyringStatus.backendName}

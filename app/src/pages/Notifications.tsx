@@ -10,10 +10,13 @@ import NotificationCenter from '../components/notifications/NotificationCenter';
 import Button from '../components/ui/Button';
 import { useT } from '../lib/i18n/I18nContext';
 import { resolveSystemRoute } from '../lib/notificationRouter';
+import { dismissNotification, markNotificationRead } from '../services/notificationService';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import {
   clearAll,
+  dismissIntegrationNotification,
   markAllRead,
+  markIntegrationRead,
   markRead,
   type NotificationCategory,
   type NotificationItem,
@@ -47,9 +50,22 @@ function formatTime(ts: number, t: (key: string) => string): string {
 const Notifications = () => {
   const { t } = useT();
   const items = useAppSelector(s => s.notifications.items);
+  // The embedded <NotificationCenter /> renders the core-backed integration
+  // feed, which lives in a separate slice array. The page-level actions used to
+  // touch `items` only, so on a page showing nothing but integration rows they
+  // were disabled, and when enabled they fired no RPC (#U11).
+  const integrationItems = useAppSelector(s => s.notifications.integrationItems);
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const unread = useMemo(() => selectUnreadCount(items), [items]);
+  const integrationUnread = useMemo(
+    () => integrationItems.filter(n => n.status === 'unread').length,
+    [integrationItems]
+  );
+  const integrationVisible = useMemo(
+    () => integrationItems.filter(n => n.status !== 'dismissed'),
+    [integrationItems]
+  );
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('all');
 
   // Only offer chips for categories that actually appear in the feed — no dead chips.
@@ -102,6 +118,39 @@ const Notifications = () => {
   const handleClick = (item: NotificationItem) => {
     if (!item.read) dispatch(markRead({ id: item.id }));
     navigate(resolveSystemRoute(item));
+  };
+
+  // Both page actions span the two feeds this page renders: the local
+  // core-bridge items and the core-backed integration items. There is no bulk
+  // RPC for either, so each id goes through the same per-id call the
+  // notification center's own controls use. Optimistic dispatch first, so the
+  // list settles even if a call fails.
+  const handleMarkAllRead = async () => {
+    dispatch(markAllRead());
+    const unreadIds = integrationItems.filter(n => n.status === 'unread').map(n => n.id);
+    console.debug(`[ui-flow][notifications] mark all read integration_ids=${unreadIds.length}`);
+    for (const id of unreadIds) {
+      dispatch(markIntegrationRead(id));
+      try {
+        await markNotificationRead(id);
+      } catch (err) {
+        console.warn('[ui-flow][notifications] mark read failed', id, err);
+      }
+    }
+  };
+
+  const handleClearAll = async () => {
+    dispatch(clearAll());
+    const ids = integrationItems.filter(n => n.status !== 'dismissed').map(n => n.id);
+    console.debug(`[ui-flow][notifications] clear all integration_ids=${ids.length}`);
+    for (const id of ids) {
+      dispatch(dismissIntegrationNotification(id));
+      try {
+        await dismissNotification(id);
+      } catch (err) {
+        console.warn('[ui-flow][notifications] dismiss failed', id, err);
+      }
+    }
   };
 
   const { view, setView, nav } = usePageWelcomeView({
@@ -167,15 +216,17 @@ const Notifications = () => {
               <Button
                 variant="tertiary"
                 size="xs"
-                onClick={() => dispatch(markAllRead())}
-                disabled={unread === 0}>
+                data-testid="alerts-mark-all-read"
+                onClick={() => void handleMarkAllRead()}
+                disabled={unread === 0 && integrationUnread === 0}>
                 {t('alerts.markAllRead')}
               </Button>
               <Button
                 variant="tertiary"
                 size="xs"
-                onClick={() => dispatch(clearAll())}
-                disabled={items.length === 0}>
+                data-testid="alerts-clear-all"
+                onClick={() => void handleClearAll()}
+                disabled={items.length === 0 && integrationVisible.length === 0}>
                 {t('common.clear')}
               </Button>
             </div>

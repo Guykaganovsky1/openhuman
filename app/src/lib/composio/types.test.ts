@@ -11,6 +11,18 @@ describe('deriveComposioState', () => {
     expect(deriveComposioState(connection('EXPIRED'))).toBe('expired');
   });
 
+  it('treats a revoked grant as its own state, not as never-connected', () => {
+    // It used to fall through to `disconnected`, which is what made a revoked
+    // account render identically to a toolkit the user never connected.
+    expect(deriveComposioState(connection('REVOKED'))).toBe('revoked');
+    expect(deriveComposioState(connection('revoked'))).toBe('revoked');
+  });
+
+  it('still reports a genuinely absent connection as disconnected', () => {
+    expect(deriveComposioState(undefined)).toBe('disconnected');
+    expect(deriveComposioState(connection('SOMETHING_ELSE'))).toBe('disconnected');
+  });
+
   it('keeps failed and generic error statuses as error', () => {
     expect(deriveComposioState(connection('FAILED'))).toBe('error');
     expect(deriveComposioState(connection('ERROR'))).toBe('error');

@@ -548,11 +548,14 @@ describe('createWalkthroughSteps', () => {
     const navigate = vi.fn();
     const steps = createWalkthroughSteps(navigate);
 
-    // Steps: 2=chat, 3=integrations, 4=channels, 5=settings, 6=chat-tab, 9=chat-welcome.
+    // Steps: 0+1=chat empty state, 2=chat, 3=integrations, 4=channels,
+    // 5=settings, 6=chat-tab, 9=chat-welcome.
     // The tail has shifted down twice: once when the Human nav step was dropped
     // (Human has no nav row — the chat composer's idle button opens it), and
     // again when the Feedback step went with the sidebar icon it pointed at.
-    const crossPageIndices = [2, 3, 4, 5, 6, 9];
+    // 0 and 1 joined the list when "Restart tour" (a Settings action) was found
+    // to skip both for want of a navigation hook.
+    const crossPageIndices = [0, 1, 2, 3, 4, 5, 6, 9];
     for (const idx of crossPageIndices) {
       expect(typeof steps[idx].before, `step[${idx}] should have a before fn`).toBe('function');
     }
@@ -562,13 +565,46 @@ describe('createWalkthroughSteps', () => {
     const navigate = vi.fn();
     const steps = createWalkthroughSteps(navigate);
 
-    const homeOnlyIndices = [0, 1, 7, 8];
-    for (const idx of homeOnlyIndices) {
+    // The nav-rail steps: their targets are in the app shell on every route.
+    const shellOnlyIndices = [7, 8];
+    for (const idx of shellOnlyIndices) {
       expect(steps[idx].before, `step[${idx}] should not have a before fn`).toBeUndefined();
     }
   });
 
+  // The tour is restarted from Settings, so the two opening steps have to reach
+  // the chat surface themselves or Joyride skips them and opens on "3 of 10".
+  it('the two opening steps navigate to /chat', async () => {
+    const navigate = vi.fn();
+    const steps = createWalkthroughSteps(navigate);
+
+    const el = document.createElement('div');
+    el.setAttribute('data-walkthrough', 'home-cta');
+    document.body.appendChild(el);
+
+    try {
+      await (steps[0].before as unknown as () => Promise<void>)();
+      await (steps[1].before as unknown as () => Promise<void>)();
+      expect(navigate).toHaveBeenNthCalledWith(1, '/chat');
+      expect(navigate).toHaveBeenNthCalledWith(2, '/chat');
+    } finally {
+      document.body.removeChild(el);
+    }
+  });
+
+  // The greeting card only mounts on the chat's empty state; a missing target
+  // there is an expected product state, so the hook must resolve, not reject.
+  it('step 1 resolves even when the greeting card never appears', async () => {
+    const navigate = vi.fn();
+    const steps = createWalkthroughSteps(navigate);
+
+    await expect((steps[0].before as unknown as () => Promise<void>)()).resolves.toBeUndefined();
+    expect(navigate).toHaveBeenCalledWith('/chat');
+  });
+
   it.each([
+    { idx: 0, route: '/chat', target: 'home-card' },
+    { idx: 1, route: '/chat', target: 'home-cta' },
     { idx: 2, route: '/chat', target: 'chat-agent-panel' },
     { idx: 3, route: '/connections', target: 'skills-grid' },
     { idx: 4, route: null, target: 'skills-channels' },

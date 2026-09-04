@@ -33,10 +33,21 @@ describe('entryRoute', () => {
     expect(entryRoute(entry!)).toBe('personality');
   });
 
-  it('returns the overridden route for build-info (→ about)', () => {
-    const entry = findEntryById('build-info');
+  it('returns the overridden route for feedback (explicit route wins)', () => {
+    // 'build-info' used to stand in here; it was a duplicate alias of 'about'
+    // and left the registry. 'core' is the same shape: id === route, no alias.
+    const entry = findEntryById('core');
     expect(entry).toBeDefined();
-    expect(entryRoute(entry!)).toBe('about');
+    expect(entryRoute(entry!)).toBe('core');
+  });
+});
+
+describe('registry has no duplicate "about" entry', () => {
+  it('exposes exactly one entry that resolves to the about route', () => {
+    // "About" and the developer-menu "Build / version info" alias both opened
+    // /settings/about, so the sidebar listed the same panel twice.
+    const aboutEntries = SETTINGS_ROUTE_REGISTRY.filter(e => entryRoute(e) === 'about');
+    expect(aboutEntries.map(e => e.id)).toEqual(['about']);
   });
 });
 
@@ -88,12 +99,11 @@ describe('findEntryByRoute', () => {
     expect(findEntryByRoute('messaging')).toBeUndefined();
   });
 
-  it('returns the build-info entry when looking up the "about" route alias', () => {
-    // build-info has route: 'about', so findEntryByRoute('about') returns
-    // whichever comes first — likely the canonical 'about' entry itself.
-    // The important assertion: the route is reachable.
+  it('resolves the "about" route to the single canonical About entry', () => {
+    // The duplicate 'build-info' alias is gone, so this lookup is unambiguous.
     const entry = findEntryByRoute('about');
     expect(entry).toBeDefined();
+    expect(entry!.id).toBe('about');
   });
 
   it('does not match partial/substring routes — lookup is exact', () => {
@@ -137,8 +147,10 @@ describe('entriesForSection', () => {
   });
 
   it('returns multiple developer entries', () => {
+    // Was `> 5`; the duplicate 'build-info' alias of the About panel left the
+    // registry, so the developer section is one entry lighter.
     const devEntries = entriesForSection('developer');
-    expect(devEntries.length).toBeGreaterThan(5);
+    expect(devEntries.length).toBeGreaterThan(4);
     devEntries.forEach(e => {
       expect(e.section).toBe('developer');
       expect(e.hiddenDeepLink).not.toBe(true);

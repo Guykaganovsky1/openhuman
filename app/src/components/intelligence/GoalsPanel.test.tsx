@@ -45,14 +45,32 @@ describe('<GoalsPanel />', () => {
     expect(await screen.findByText('New goal')).toBeInTheDocument();
   });
 
-  it('deletes a goal', async () => {
+  it('deletes a goal after the confirmation is accepted', async () => {
     api.list.mockResolvedValueOnce([{ id: 'g1', text: 'Doomed goal' }]);
     api.remove.mockResolvedValueOnce([]);
     render(<GoalsPanel />);
     await screen.findByText('Doomed goal');
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete goal' }));
+    // The click alone must not reach the API — this is a destructive action.
+    expect(api.remove).not.toHaveBeenCalled();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(api.remove).toHaveBeenCalledWith('g1'));
+  });
+
+  it('does not delete a goal when the confirmation is cancelled', async () => {
+    api.list.mockResolvedValueOnce([{ id: 'g1', text: 'Doomed goal' }]);
+    render(<GoalsPanel />);
+    await screen.findByText('Doomed goal');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete goal' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('goal-delete-confirm')).not.toBeInTheDocument()
+    );
+    expect(api.remove).not.toHaveBeenCalled();
   });
 
   it('runs reflect and shows the agent summary', async () => {
@@ -134,6 +152,7 @@ describe('<GoalsPanel />', () => {
     await screen.findByText('x');
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete goal' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('delete failed');
   });
 

@@ -27,7 +27,6 @@ const ToolsPanel = ({ embedded = false }: ToolsPanelProps = {}) => {
   const toolsByCategory = getToolsByCategory();
 
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
-  const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   // Prevents the useEffect from re-initializing state immediately after a save
@@ -36,9 +35,17 @@ const ToolsPanel = ({ embedded = false }: ToolsPanelProps = {}) => {
 
   const onboardingTasks = snapshot.localState.onboardingTasks;
 
+  const [dirty, setDirty] = useState(false);
+
   // Initialise toggle state from core state (persisted) or defaults.
+  //
+  // `dirty` guards the same window `savingRef` does, for the other direction:
+  // any app-state snapshot (they arrive for unrelated reasons) would otherwise
+  // re-run this effect and silently revert a pending toggle while "Save
+  // Changes" stayed visible — Save then persisted the reverted value and
+  // reported success. Re-sync only once the user has nothing unsaved.
   useEffect(() => {
-    if (savingRef.current) return;
+    if (savingRef.current || dirty) return;
     const persisted = onboardingTasks?.enabledTools;
     // normalizeEnabledToolList converts persisted Rust tool names (e.g.
     // "web_search_tool") back to UI toggle IDs ("web_search") so the

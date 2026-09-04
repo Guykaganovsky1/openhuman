@@ -544,6 +544,7 @@ const en: TranslationMap = {
   'chat.startConversation': 'Start a conversation',
   'chat.regenerate': 'Regenerate',
   'chat.copyResponse': 'Copy response',
+  'chat.copyMessage': 'Copy message',
   'chat.citations': 'Citations',
 
   // Share cards (#5006): one-tap "look what my agent did" post to X / LinkedIn.
@@ -2587,9 +2588,11 @@ const en: TranslationMap = {
   'chat.noThreads': 'No threads yet',
   'chat.noLabelThreads': 'No "{label}" threads',
   'chat.deleteThread': 'Delete thread',
+  'chat.deleteThreadAria': 'Delete conversation {title}',
   'chat.deleteThreadConfirm': 'Are you sure you want to delete "{title}"?',
   'chat.untitledThread': 'Untitled thread',
   'chat.editThreadTitle': 'Edit thread title',
+  'chat.renameThreadAria': 'Rename conversation {title}',
   'chat.hideSidebar': 'Hide sidebar',
   'chat.showSidebar': 'Show sidebar',
   'chat.searchThreads': 'Search conversations',
@@ -3239,6 +3242,7 @@ const en: TranslationMap = {
   // Composio: miscellaneous
   'composio.statusUnavailable': 'Status unavailable',
   'composio.authExpired': 'Auth expired',
+  'composio.authRevoked': 'Access revoked',
   'composio.reconnect': 'Reconnect',
   'composio.expiredAuthorization': '{name} authorization expired',
   'composio.expiredDescription':
@@ -3537,6 +3541,8 @@ const en: TranslationMap = {
     'Pick a method below: link your account via OpenHuman, install the bot with OAuth, or paste your own bot token from the Discord developer portal.',
   'channels.connectHelp.telegram':
     'Pick a method below: message the managed OpenHuman bot to link it, or paste your own bot token from @BotFather.',
+  'channels.connectHelp.imessage':
+    'No credentials needed. OpenHuman reads the local Messages database, so grant it Full Disk Access in System Settings > Privacy & Security > Full Disk Access, then restart the app.',
   'channels.connectHelp.slackNote':
     'Looking for Slack? Slack connects as an app under Connections → OAuth, not as a messaging channel here.',
 
@@ -4791,7 +4797,8 @@ const en: TranslationMap = {
   'pages.settings.features.notifications': 'Notifications',
   'pages.settings.features.notificationsDesc': 'Notifications desc',
   'pages.settings.features.tools': 'Tools',
-  'pages.settings.features.toolsDesc': 'Tools desc',
+  'pages.settings.features.toolsDesc':
+    'Turn individual agent tools on or off, grouped by category.',
   'pages.settings.featuresSection.title': 'Features',
   'privacy.dataKind.credentials': 'Credentials',
   'privacy.dataKind.derived': 'Derived',
@@ -4872,7 +4879,7 @@ const en: TranslationMap = {
   'rewards.coupon.subtitle': 'Enter a coupon code to add credits to your account.',
   'rewards.coupon.title': 'Redeem a coupon code',
   'rewards.referralSection.activity': 'Referral activity',
-  'rewards.referralSection.apply': 'Applying…',
+  'rewards.referralSection.apply': 'Apply',
   'rewards.referralSection.applying': 'Applying…',
   'rewards.referralSection.colReferredUser': 'Referred user',
   'rewards.referralSection.colReward': 'Reward',

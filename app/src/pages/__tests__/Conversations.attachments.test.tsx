@@ -760,9 +760,10 @@ describe('Conversations — attachment feature', () => {
     expect(document.body.textContent).toContain('and');
 
     // Copy-to-clipboard must use the same cleaned text as the bubble, not the
-    // raw msg.content with markers still embedded.
+    // raw msg.content with markers still embedded. This is a *user* turn, so
+    // the control is labelled "Copy message" (an agent turn says "Copy response").
     await act(async () => {
-      fireEvent.click(screen.getByTitle('Copy response'));
+      fireEvent.click(screen.getByTitle('Copy message'));
     });
     expect(writeText).toHaveBeenCalledWith('read this and');
     expect(writeText).not.toHaveBeenCalledWith(expect.stringContaining('[IMAGE:'));
@@ -782,7 +783,7 @@ describe('Conversations — thread rename', () => {
     const { threadApi } = await import('../../services/api/threadApi');
 
     // Enter edit mode via the thread row pencil affordance.
-    fireEvent.click(screen.getByRole('button', { name: 'Edit thread title' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename conversation Attach Thread' }));
     const input = await screen.findByRole('textbox', { name: 'Edit thread title' });
     fireEvent.change(input, { target: { value: 'Renamed in header' } });
     fireEvent.keyDown(input, { key: 'Enter' });
@@ -796,7 +797,7 @@ describe('Conversations — thread rename', () => {
     await renderWithSelectedThread();
     const { threadApi } = await import('../../services/api/threadApi');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit thread title' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename conversation Attach Thread' }));
     const input = await screen.findByRole('textbox', { name: 'Edit thread title' });
     fireEvent.change(input, { target: { value: 'Discarded title' } });
     fireEvent.keyDown(input, { key: 'Escape' });
@@ -812,7 +813,7 @@ describe('Conversations — thread rename', () => {
     await renderWithSelectedThread();
     const { threadApi } = await import('../../services/api/threadApi');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit thread title' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename conversation Attach Thread' }));
     const input = await screen.findByRole('textbox', { name: 'Edit thread title' });
     fireEvent.change(input, { target: { value: '日本語' } });
     // keyCode 229 marks an IME composition keydown — Enter here confirms a
@@ -830,7 +831,7 @@ describe('Conversations — thread rename', () => {
 
     // The input seeds with the current title ("Attach Thread"); committing it
     // unchanged must not dispatch an update.
-    fireEvent.click(screen.getByRole('button', { name: 'Edit thread title' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename conversation Attach Thread' }));
     const input = await screen.findByRole('textbox', { name: 'Edit thread title' });
     fireEvent.keyDown(input, { key: 'Enter' });
 
@@ -844,7 +845,7 @@ describe('Conversations — thread rename', () => {
     await renderWithSelectedThread();
     const { threadApi } = await import('../../services/api/threadApi');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit thread title' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename conversation Attach Thread' }));
     const input = await screen.findByRole('textbox', { name: 'Edit thread title' });
     fireEvent.change(input, { target: { value: '   ' } });
     fireEvent.keyDown(input, { key: 'Enter' });
@@ -861,7 +862,7 @@ describe('Conversations — thread rename', () => {
 
     // Clicking the row pencil opens edit mode; the blur fired while the input
     // is grabbing focus is ignored (no spurious commit).
-    fireEvent.click(screen.getByRole('button', { name: 'Edit thread title' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename conversation Attach Thread' }));
     const input = await screen.findByRole('textbox', { name: 'Edit thread title' });
     fireEvent.blur(input);
 
@@ -875,7 +876,7 @@ describe('Conversations — thread rename', () => {
       new Error('rename boom')
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Edit thread title' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Rename conversation Attach Thread' }));
     const input = await screen.findByRole('textbox', { name: 'Edit thread title' });
     fireEvent.change(input, { target: { value: 'Doomed rename' } });
     fireEvent.keyDown(input, { key: 'Enter' });

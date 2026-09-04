@@ -133,13 +133,63 @@ if ! curl -sf -m 2 "http://127.0.0.1:$core_port/health" >/dev/null 2>&1; then
 fi
 
 # Fail loudly here rather than letting the browser hit an opaque 401 later.
-rpc_status=$(curl -s -o /dev/null -w '%{http_code}' -m 10 \
-  -X POST "http://127.0.0.1:$core_port/rpc" \
-  -H 'Content-Type: application/json' \
-  -H "Authorization: Bearer $core_token" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"openhuman.health_check","params":{}}')
-if [[ "$rpc_status" != "200" ]]; then
-  echo "[dev:web] ERROR: authenticated RPC probe returned HTTP $rpc_status." >&2
+#
+# Two things this probe must get right, and the version it replaces got both
+# wrong:
+#
+#   * It must call a method that EXISTS. `openhuman.health_check` never did.
+#     Method names are `openhuman.<namespace>_<function>`, and the health
+#     controller registers `health`/`snapshot`
+#     (`src/openhuman/platform/health/schemas.rs`), i.e.
+#     `openhuman.health_snapshot`.
+#   * It must read the BODY, not just the status. `src/core/jsonrpc.rs`
+#     answers HTTP 200 with a JSON-RPC `error` member for an unknown method,
+#     so a status-only check reported "core healthy" for a method the core had
+#     just rejected — it only ever proved the bearer was accepted.
+probe_core_rpc() {
+  local url="$1" token="$2" body status reason
+  body="$(mktemp)"
+  status="$(curl -s -o "$body" -w '%{http_code}' -m 10 \
+    -X POST "$url" \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $token" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"openhuman.health_snapshot","params":{}}' \
+    || echo 000)"
+  if [[ "$status" != "200" ]]; then
+    echo "[dev:web] ERROR: authenticated RPC probe returned HTTP $status." >&2
+    rm -f "$body"
+    return 1
+  fi
+  # node is already a hard requirement of this script (vite runs next).
+  if ! reason="$(node -e '
+    const fs = require("fs");
+    const has = (o, k) => o !== null && typeof o === "object"
+      && Object.prototype.hasOwnProperty.call(o, k);
+    let doc;
+    try {
+      doc = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    } catch (e) {
+      console.log("response was not JSON (" + e.message + ")");
+      process.exit(1);
+    }
+    if (has(doc, "error")) {
+      console.log("JSON-RPC error: " + JSON.stringify(doc.error));
+      process.exit(1);
+    }
+    if (!has(doc, "result")) {
+      console.log("response carried neither a result nor an error member");
+      process.exit(1);
+    }
+  ' "$body")"; then
+    echo "[dev:web] ERROR: authenticated RPC probe failed: $reason" >&2
+    rm -f "$body"
+    return 1
+  fi
+  rm -f "$body"
+  return 0
+}
+
+if ! probe_core_rpc "http://127.0.0.1:$core_port/rpc" "$core_token"; then
   exit 1
 fi
 echo "[dev:web] core healthy and accepting the dev bearer"

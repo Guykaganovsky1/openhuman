@@ -263,6 +263,30 @@ describe('Skills page — Composio catalog fallback', () => {
     expect(screen.getByRole('button', { name: /Reconnect Gmail/i })).toBeInTheDocument();
   });
 
+  it('surfaces a REVOKED Composio grant as reconnectable, not as never-connected', () => {
+    // The defect: `REVOKED` fell through `deriveComposioState`'s ladder to
+    // `disconnected`, so the one real connection on the tab rendered exactly
+    // like the ~118 toolkits the user had never touched — empty status slot,
+    // "Connect" call to action, nothing saying an account had existed.
+    composioToolkits = ['gmail'];
+    composioConnectionByToolkit = new Map([
+      ['gmail', { id: 'ca_revoked', toolkit: 'gmail', status: 'REVOKED' }],
+    ]);
+
+    renderWithProviders(<Skills />, { initialEntries: ['/connections'] });
+    openAppsTab();
+
+    const integrationsSection = screen.getByTestId('composio-integrations-card') as HTMLElement;
+    const gmailTile = within(integrationsSection).getByRole('button', {
+      name: /Gmail.*Access revoked.*Reconnect/i,
+    });
+    expect(within(gmailTile).getByText('Access revoked')).toBeInTheDocument();
+
+    // The never-connected tiles are what this must NOT look like.
+    const slackTile = within(integrationsSection).getByRole('button', { name: /^Slack, \. / });
+    expect(slackTile).toHaveAttribute('aria-label', 'Slack, . Connect.');
+  });
+
   it('shows a multi-account count badge when a toolkit has more than one active connection', () => {
     composioToolkits = ['gmail'];
     composioConnectionByToolkit = new Map([

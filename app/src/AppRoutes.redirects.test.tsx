@@ -93,6 +93,7 @@ const REDIRECTS: Array<{ from: string; pathname: string; search: string }> = [
   { from: '/channels', pathname: '/connections', search: '?tab=messaging' },
   { from: '/feedback', pathname: '/settings/feedback', search: '' },
   { from: '/routines', pathname: '/flows', search: '' },
+  { from: '/flows/discoveries', pathname: '/flows', search: '?view=discoveries' },
   { from: '/webhooks', pathname: '/settings/integrations', search: '' },
 ];
 

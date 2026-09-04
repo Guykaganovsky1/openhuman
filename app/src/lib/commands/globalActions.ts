@@ -157,7 +157,9 @@ function buildGlobalActions(h: GlobalActionHandlers): GlobalActionDef[] {
       labelKey: 'shortcuts.action.activity',
       group: 'Navigation',
       shortcut: `${NAV_MOD}+5`,
-      handler: nav('/activity'),
+      // `/activity` is only a redirect in `AppRoutes.tsx`; navigate straight to
+      // the surface it lands on so the palette does not bounce through a stub.
+      handler: nav('/settings/notifications'),
       keywords: ['tasks', 'automations', 'alerts', 'background'],
     },
     {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { WalletStatus } from '../../../../services/walletApi';
 import { renderWithProviders } from '../../../../test/test-utils';
+import { MASKED_WORD } from '../RecoveryPhraseGenerateMode';
 import RecoveryPhrasePanel from '../RecoveryPhrasePanel';
 
 // Use vi.hoisted so the factory closures can reference these before module initialisation.
@@ -710,5 +711,64 @@ describe('RecoveryPhrasePanel — view mode: reveal existing recovery phrase', (
     fireEvent.click(screen.getByText(/Hide phrase/i));
     await waitFor(() => expect(screen.queryByText(/Hide phrase/i)).toBeNull());
     expect(screen.getByText(/Reveal recovery phrase/i)).toBeTruthy();
+  });
+
+  // U22: the reveal gate used to be `filter: blur(8px)` alone — the words were
+  // in the DOM (and the accessibility tree) the whole time. The phrase here is
+  // the suite's fake one, never a real wallet's.
+  it('does not put the words in the DOM until the phrase is revealed', async () => {
+    renderWithProviders(<RecoveryPhrasePanel />);
+    await waitFor(() => screen.getByText(/Reveal recovery phrase/i));
+
+    // View mode has not fetched the phrase yet — nothing to leak.
+    expect(screen.queryByText('word1')).toBeNull();
+
+    fireEvent.click(screen.getByText(/Reveal recovery phrase/i).closest('button')!);
+    await waitFor(() => expect(mockRevealRecoveryPhrase).toHaveBeenCalled());
+
+    // Revealed on purpose: the words render.
+    await waitFor(() => expect(screen.getByText('word1')).toBeTruthy());
+    expect(screen.getByText('word12')).toBeTruthy();
+
+    // Hiding takes them back out of the DOM.
+    fireEvent.click(screen.getByText(/Hide phrase/i));
+    await waitFor(() => expect(screen.queryByText('word1')).toBeNull());
+  });
+});
+
+// ── U22: generate mode renders masked placeholders until revealed ───────────
+
+describe('RecoveryPhrasePanel — generate mode keeps the words out of the DOM', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGenerateMnemonicPhrase.mockReturnValue(
+      'word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12'
+    );
+    mockFetchWalletStatus.mockResolvedValue({
+      configured: false,
+      onboardingCompleted: false,
+      consentGranted: false,
+      secretStored: false,
+      source: null,
+      mnemonicWordCount: null,
+      accounts: [],
+      updatedAtMs: null,
+    });
+  });
+
+  it('renders placeholders before reveal and the real words after', async () => {
+    renderWithProviders(<RecoveryPhrasePanel />);
+    await waitFor(() => screen.getByLabelText(/Reveal recovery phrase/i));
+
+    // Blurred-but-present was the bug: assert real absence, not opacity.
+    expect(screen.queryByText('word1')).toBeNull();
+    expect(screen.queryByText('word12')).toBeNull();
+    expect(screen.getAllByText(MASKED_WORD)).toHaveLength(12);
+
+    fireEvent.click(screen.getByLabelText(/Reveal recovery phrase/i));
+
+    await waitFor(() => expect(screen.getByText('word1')).toBeTruthy());
+    expect(screen.getByText('word12')).toBeTruthy();
+    expect(screen.queryByText(MASKED_WORD)).toBeNull();
   });
 });

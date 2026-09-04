@@ -77,6 +77,48 @@ export function parseSyncProgress(detail: string | null, stage?: string): number
 }
 
 /**
+ * Strip a `<kind>:<subkind>:` scope prefix from a sync-stage `source_id`.
+ *
+ * The core attributes some stages with a scoped id (observed:
+ * `workspace:folder:src_…`) while the registry rows are keyed by the bare
+ * `MemorySourceEntry.id` (`src_…`). Returns `null` when there is no such
+ * prefix to strip.
+ */
+export function stripSourceScopePrefix(sourceId: string): string | null {
+  const parts = sourceId.split(':');
+  if (parts.length < 3) return null;
+  const rest = parts.slice(2).join(':');
+  return rest.length > 0 ? rest : null;
+}
+
+/**
+ * Resolve the registry row a `MemorySyncStageChanged` event belongs to.
+ *
+ * The event can name the row three ways — a bare `source_id`, a scoped
+ * `source_id` (`workspace:folder:src_…`), or a legacy `connection_id` — and
+ * only ids that match a listed source can clear that row's syncing flag. So
+ * every candidate is tried against the known ids first; if none matches (the
+ * list has not loaded yet) the raw `source_id`/`connection_id` is returned,
+ * which is exactly the pre-fix behaviour.
+ */
+export function resolveSyncRowId(
+  data: { source_id?: string | null; connection_id?: string | null } | null,
+  knownIds: ReadonlySet<string>
+): string | null {
+  const candidates: string[] = [];
+  if (data?.source_id) {
+    candidates.push(data.source_id);
+    const stripped = stripSourceScopePrefix(data.source_id);
+    if (stripped) candidates.push(stripped);
+  }
+  if (data?.connection_id) candidates.push(data.connection_id);
+  for (const candidate of candidates) {
+    if (knownIds.has(candidate)) return candidate;
+  }
+  return candidates[0] ?? null;
+}
+
+/**
  * Parse the number of newly-ingested items from a `completed` stage detail
  * string. The backend formats this as `"ingested N item(s)"`
  * (`memory_sources/sync.rs`). Returns `null` when no count is present so the
@@ -118,6 +160,9 @@ export function MemorySourcesRegistry({
   // Terminal per-source result (success/failure) shown after a sync ends (#3295).
   const [syncResults, setSyncResults] = useState<Map<string, SyncResult>>(new Map());
   const [allInModalOpen, setAllInModalOpen] = useState(false);
+  // Removing a source deletes it and everything it fed into memory, so it is
+  // confirmed the same way the sibling "All in" action on this card is.
+  const [pendingRemoval, setPendingRemoval] = useState<MemorySourceEntry | null>(null);
   const [applyingAllIn, setApplyingAllIn] = useState(false);
   const allInInFlightRef = useRef(false);
   const [expandedSettingsId, setExpandedSettingsId] = useState<string | null>(null);
@@ -147,7 +192,11 @@ export function MemorySourcesRegistry({
 
       // RC#2 (#3295): prefer source_id when present; fall back to connection_id for
       // backward compat with older core versions that don't emit source_id yet.
-      const rowId = data?.source_id ?? data?.connection_id;
+      // The core also emits a scoped source_id (`workspace:folder:src_…`) whose
+      // bare tail is the row id, so resolution goes through the known-id set —
+      // a raw prefixed id never matched the set the row was added to, and the
+      // terminal `delete` missed, leaving the row stuck on "Syncing…".
+      const rowId = resolveSyncRowId(data, new Set(sourcesRef.current.map(s => s.id)));
       if (!rowId) return;
 
       const stage = data?.stage ?? '';
@@ -264,11 +313,29 @@ export function MemorySourcesRegistry({
       setSources(list);
       setStatuses(stats);
       setPipeline(health);
-      // RC#5 (#3295): The 5s poll is the safety net for missed completed/failed events.
-      // If a source is in syncingIds but the poll shows it's no longer active (no
-      // in-progress status indicator from the server), we clear it here. In practice
-      // the event stream covers this; on remount the state rehydrates within ~5s via poll.
-      // No new RPC needed — reconciliation is best-effort and relies on the existing poll.
+      // RC#5 (#3295): the 5s poll is the safety net for sync state that no
+      // terminal event will ever clear. This used to be a comment with no code
+      // behind it. A syncing id that the refreshed list does not name can never
+      // be cleared by a later event either (nothing renders it, and the row it
+      // was meant for is keyed differently), so drop it here rather than leave a
+      // permanent "Syncing…" ghost. Sources the list still names are left alone —
+      // their sync is genuinely in flight until the terminal event arrives.
+      const liveIds = new Set(list.map(s => s.id));
+      setSyncingIds(prev => {
+        const stale = Array.from(prev).filter(id => !liveIds.has(id));
+        if (stale.length === 0) return prev;
+        console.debug(`[ui-flow][memory-sync] reconcile: dropping stale syncing ids ${stale}`);
+        const next = new Set(prev);
+        for (const id of stale) next.delete(id);
+        return next;
+      });
+      setSyncProgress(prev => {
+        const stale = Array.from(prev.keys()).filter(id => !liveIds.has(id));
+        if (stale.length === 0) return prev;
+        const next = new Map(prev);
+        for (const id of stale) next.delete(id);
+        return next;
+      });
     } finally {
       setLoading(false);
     }
@@ -327,6 +394,11 @@ export function MemorySourcesRegistry({
     },
     [onToast, t]
   );
+
+  const requestRemove = useCallback((source: MemorySourceEntry) => {
+    console.debug(`[ui-flow][memory-sources] remove requested source_id=${source.id}`);
+    setPendingRemoval(source);
+  }, []);
 
   const handleRemove = useCallback(
     async (source: MemorySourceEntry) => {
@@ -543,7 +615,7 @@ export function MemorySourcesRegistry({
               result={syncResults.get(source.id) ?? null}
               settingsExpanded={expandedSettingsId === source.id}
               onToggle={handleToggle}
-              onRemove={handleRemove}
+              onRemove={requestRemove}
               onSync={handleSync}
               onBuild={handleBuild}
               onToggleSettings={handleToggleSettings}
@@ -572,6 +644,26 @@ export function MemorySourcesRegistry({
 
       {allInModalOpen && (
         <ConfirmationModal modal={allInModal} onClose={() => setAllInModalOpen(false)} />
+      )}
+
+      {pendingRemoval && (
+        <ConfirmationModal
+          modal={{
+            isOpen: true,
+            title: t('memorySources.remove'),
+            message: `${pendingRemoval.label} · ${t('clearData.irreversible')}`,
+            confirmText: t('common.remove'),
+            cancelText: t('common.cancel'),
+            destructive: true,
+            onConfirm: () => {
+              const target = pendingRemoval;
+              setPendingRemoval(null);
+              void handleRemove(target);
+            },
+            onCancel: () => setPendingRemoval(null),
+          }}
+          onClose={() => setPendingRemoval(null)}
+        />
       )}
     </Card>
   );

@@ -52,14 +52,45 @@ fn spawn_error(bin_path: &Path, detail: &dyn std::fmt::Display) -> anyhow::Error
     // enterable — and the binary is perfectly fine. Stamping the setup marker
     // on that tells the user to reinstall a CLI that is not broken, and makes
     // the error non-retryable. So ask the binary directly instead of inferring.
-    match cli_unusable_detail(bin_path) {
-        Some(reason) => anyhow::anyhow!("{reason} ({detail})"),
-        None => anyhow::anyhow!("failed to spawn `claude`: {detail}"),
+    spawn_error_for_probe(probe_cli(bin_path), detail)
+}
+
+/// The [`spawn_error`] body with the probe supplied, so a test can stage an
+/// outcome — EIO in particular cannot be conjured on a real filesystem.
+fn spawn_error_for_probe(probe: CliProbe, detail: &dyn std::fmt::Display) -> anyhow::Error {
+    match probe {
+        CliProbe::Unusable(reason) => anyhow::anyhow!("{reason} ({detail})"),
+        // The probe could not answer, so the marker is withheld: the failure
+        // stays a retryable spawn error. Both texts are carried — the spawn
+        // errno says what failed, the probe errno says why we could not tell
+        // whether the install is at fault.
+        CliProbe::Indeterminate(reason) => {
+            anyhow::anyhow!("failed to spawn `claude`: {detail} ({reason})")
+        }
+        CliProbe::Healthy => anyhow::anyhow!("failed to spawn `claude`: {detail}"),
     }
 }
 
-/// The setup-marker detail when the `claude` binary itself is the reason a turn
-/// could not run, or `None` when the binary looks fine.
+/// What inspecting the `claude` binary said about it.
+///
+/// Three outcomes, not two, because "the probe failed" and "the binary is
+/// broken" are different answers and only one of them may reach the user as a
+/// non-retryable setup failure.
+enum CliProbe {
+    /// The binary looks fine; whatever failed, it was not the install.
+    Healthy,
+    /// The binary itself is the reason a turn could not run. The string carries
+    /// the `[claude-code] `claude` CLI` marker and therefore classifies as a
+    /// NON-RETRYABLE `provider_setup` problem downstream.
+    Unusable(String),
+    /// The probe could not answer (EIO, ELOOP, ENAMETOOLONG, a stalled network
+    /// mount …). The io text is carried for diagnostics, but the marker is
+    /// deliberately withheld — a transient read failure must not permanently
+    /// mark the provider unusable.
+    Indeterminate(String),
+}
+
+/// Ask the `claude` binary whether it is the reason a turn could not run.
 ///
 /// A non-zero exit normally means the CLI ran and failed, which is a turn
 /// problem, not an install problem. Under the macOS Seatbelt jail it can also
@@ -68,21 +99,16 @@ fn spawn_error(bin_path: &Path, detail: &dyn std::fmt::Display) -> anyhow::Error
 /// asked to wrap is gone or lost its execute bit. `spawn_error` never sees
 /// that, so without this check a missing CLI reaches the user as a retryable
 /// generic error telling them to report it on Discord.
-fn cli_unusable_detail(bin: &Path) -> Option<String> {
+fn probe_cli(bin: &Path) -> CliProbe {
     let meta = match std::fs::metadata(bin) {
         Ok(meta) => meta,
-        Err(_) => {
-            return Some(format!(
-                "[claude-code] `claude` CLI at {} is no longer present",
-                bin.display()
-            ))
-        }
+        Err(err) => return metadata_failure(bin, &err),
     };
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         if meta.permissions().mode() & 0o111 == 0 {
-            return Some(format!(
+            return CliProbe::Unusable(format!(
                 "[claude-code] `claude` CLI at {} is not executable",
                 bin.display()
             ));
@@ -90,7 +116,38 @@ fn cli_unusable_detail(bin: &Path) -> Option<String> {
     }
     #[cfg(not(unix))]
     let _ = meta;
-    None
+    CliProbe::Healthy
+}
+
+/// Classify a failed `stat` of the CLI.
+///
+/// Collapsing every errno into "is no longer present" was wrong twice over: it
+/// told the user to reinstall a binary that is sitting right there, and it did
+/// so non-retryably, so a transient EIO on a network mount permanently marked
+/// the provider broken for the rest of the turn. Only the two errnos that
+/// really are install problems keep the marker.
+///
+/// Split out from [`probe_cli`] so each kind is testable without conjuring the
+/// errno on a real filesystem — EIO in particular cannot be staged portably.
+fn metadata_failure(bin: &Path, err: &std::io::Error) -> CliProbe {
+    match err.kind() {
+        std::io::ErrorKind::NotFound => CliProbe::Unusable(format!(
+            "[claude-code] `claude` CLI at {} is no longer present",
+            bin.display()
+        )),
+        // Still a setup problem, but a different one: the file may well exist
+        // and be perfectly good — the app cannot look at it. Saying "no longer
+        // present" would send the user to reinstall instead of to the
+        // permissions on the path.
+        std::io::ErrorKind::PermissionDenied => CliProbe::Unusable(format!(
+            "[claude-code] `claude` CLI at {} cannot be inspected: permission denied ({err})",
+            bin.display()
+        )),
+        _ => CliProbe::Indeterminate(format!(
+            "could not inspect `claude` CLI at {}: {err}",
+            bin.display()
+        )),
+    }
 }
 
 fn parse_turn_timeout(raw: Option<&str>) -> Duration {
@@ -571,8 +628,15 @@ pub async fn run_turn(ctx: TurnContext<'_>) -> anyhow::Result<ChatResponse> {
     let stderr_text = stderr_task.await.unwrap_or_default();
 
     if !status.success() {
-        if let Some(detail) = cli_unusable_detail(&bin_path) {
-            anyhow::bail!("{detail} (exit {:?})", status.code());
+        match probe_cli(&bin_path) {
+            CliProbe::Unusable(detail) => anyhow::bail!("{detail} (exit {:?})", status.code()),
+            // The probe could not answer, so it may not claim the exit: the
+            // CLI's own stderr below is the better diagnostic, and the setup
+            // marker would make an unrelated read failure non-retryable.
+            CliProbe::Indeterminate(reason) => {
+                log::warn!("[claude-code][driver] cli probe inconclusive: {reason}")
+            }
+            CliProbe::Healthy => {}
         }
         anyhow::bail!(
             "[claude-code][driver] exit {:?} stderr={}",

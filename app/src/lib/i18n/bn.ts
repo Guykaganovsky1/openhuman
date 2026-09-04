@@ -717,6 +717,7 @@ const messages: TranslationMap = {
   'chat.startConversation': 'একটি কথোপকথন শুরু করুন',
   'chat.regenerate': 'পুনরায় তৈরি করুন',
   'chat.copyResponse': 'উত্তর কপি করুন',
+  'chat.copyMessage': 'বার্তা কপি করুন',
   'chat.citations': 'উদ্ধৃতি',
   'chat.toolUsed': 'ব্যবহৃত টুল',
   'scope.legacy': 'লেগ্যাসি',
@@ -2328,9 +2329,11 @@ const messages: TranslationMap = {
   'chat.noThreads': 'এখনো কোনো থ্রেড নেই',
   'chat.noLabelThreads': '"{label}" থ্রেড নেই',
   'chat.deleteThread': 'থ্রেড মুছুন',
+  'chat.deleteThreadAria': '{title} কথোপকথন মুছুন',
   'chat.deleteThreadConfirm': 'আপনি কি "{title}" মুছতে চান?',
   'chat.untitledThread': 'শিরোনামহীন থ্রেড',
   'chat.editThreadTitle': 'থ্রেডের শিরোনাম সম্পাদনা করুন',
+  'chat.renameThreadAria': '{title} কথোপকথনের নাম বদলান',
   'chat.hideSidebar': 'সাইডবার লুকান',
   'chat.showSidebar': 'সাইডবার দেখান',
   'chat.searchThreads': 'কথোপকথন অনুসন্ধান করুন',
@@ -2845,6 +2848,7 @@ const messages: TranslationMap = {
   'onboarding.skills.status.unavailable': 'পাওয়া যাচ্ছে না',
   'composio.statusUnavailable': 'স্ট্যাটাস পাওয়া যাচ্ছে না',
   'composio.authExpired': 'অথ মেয়াদোত্তীর্ণ',
+  'composio.authRevoked': 'অ্যাক্সেস প্রত্যাহার করা হয়েছে',
   'composio.reconnect': 'পুনঃসংযোগ',
   'composio.expiredAuthorization': '{name} অনুমোদনের মেয়াদ শেষ',
   'composio.expiredDescription':
@@ -3106,6 +3110,8 @@ const messages: TranslationMap = {
     'নিচে একটি পদ্ধতি বেছে নিন: OpenHuman-এর মাধ্যমে আপনার অ্যাকাউন্ট লিঙ্ক করুন, OAuth দিয়ে বট ইনস্টল করুন, অথবা Discord ডেভেলপার পোর্টাল থেকে আপনার নিজের বট টোকেন পেস্ট করুন।',
   'channels.connectHelp.telegram':
     'নিচে একটি পদ্ধতি বেছে নিন: লিঙ্ক করতে ম্যানেজড OpenHuman বটে বার্তা পাঠান, অথবা @BotFather থেকে আপনার নিজের বট টোকেন পেস্ট করুন।',
+  'channels.connectHelp.imessage':
+    'কোনো শংসাপত্র লাগে না। OpenHuman স্থানীয় Messages ডেটাবেস পড়ে, তাই System Settings > Privacy & Security > Full Disk Access থেকে এটিকে ফুল ডিস্ক অ্যাক্সেস দিন, তারপর অ্যাপটি আবার চালু করুন।',
   'channels.connectHelp.slackNote':
     'Slack খুঁজছেন? Slack এখানে মেসেজিং চ্যানেল হিসেবে নয়, সংযোগ → OAuth-এ একটি অ্যাপ হিসেবে সংযুক্ত হয়।',
   'channels.web.displayName': 'ওয়েব',
@@ -4142,7 +4148,8 @@ const messages: TranslationMap = {
   'pages.settings.features.notifications': 'বিজ্ঞপ্তি',
   'pages.settings.features.notificationsDesc': 'বিজ্ঞপ্তির বিবরণ',
   'pages.settings.features.tools': 'টুলস',
-  'pages.settings.features.toolsDesc': 'টুলসের বিবরণ',
+  'pages.settings.features.toolsDesc':
+    'বিভাগ অনুযায়ী সাজানো এজেন্ট টুল আলাদাভাবে চালু বা বন্ধ করুন।',
   'pages.settings.featuresSection.title': 'ফিচার',
   'privacy.dataKind.credentials': 'ক্রেডেনশিয়াল',
   'privacy.dataKind.derived': 'ডেরাইভড',
@@ -4224,7 +4231,7 @@ const messages: TranslationMap = {
   'rewards.coupon.subtitle': 'সাবটাইটেল',
   'rewards.coupon.title': 'একটি কুপন কোড রিডিম করুন',
   'rewards.referralSection.activity': 'রেফারেল অ্যাক্টিভিটি',
-  'rewards.referralSection.apply': 'প্রয়োগ হচ্ছে…',
+  'rewards.referralSection.apply': 'প্রয়োগ করুন',
   'rewards.referralSection.applying': 'প্রয়োগ হচ্ছে…',
   'rewards.referralSection.colReferredUser': 'রেফার করা ব্যবহারকারী',
   'rewards.referralSection.colReward': 'পুরস্কার',

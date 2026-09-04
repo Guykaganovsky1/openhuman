@@ -131,11 +131,24 @@ fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
     // a shell that blocks in an rc file would survive as an orphan process for
     // the life of the app. Only the stdout pipe crosses the thread boundary;
     // killing the child closes it, which ends the reader on its own.
-    let mut child = Command::new(shell)
+    let mut command = Command::new(shell);
+    command
         .args(["-lic", "command -v claude"])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    // Its own process group, so the budget below can reap the whole tree.
+    // `-i` sources the user's interactive rc files, and one that backgrounds
+    // anything (`sleep 30 &`, a daemon warm-up, a version-manager prefetch)
+    // leaves a grandchild that killing the shell alone never touches — it is
+    // reparented to init and survives for the life of the app, which is the
+    // very leak the bound exists to prevent.
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    let mut child = command
         .spawn()
         .map_err(|err| {
             log::debug!("[claude-code][version] login shell probe failed err={err}");
@@ -159,7 +172,7 @@ fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
                  a slow or blocking shell profile can cause this",
                 budget.as_secs()
             );
-            let _ = child.kill();
+            kill_probe_tree(&mut child);
             let _ = child.wait();
             return None;
         }
@@ -177,6 +190,29 @@ fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
         );
         path
     })
+}
+
+/// Kill the timed-out probe and everything its rc files started.
+///
+/// The child is its own process-group leader (see `process_group(0)` above), so
+/// a negative pid signals the whole group. `Child::kill` alone reaps only the
+/// shell: a `sleep` backgrounded from `.zshrc` outlives it as an orphan, which
+/// is exactly what the 2s bound is supposed to prevent.
+#[cfg(unix)]
+fn kill_probe_tree(child: &mut std::process::Child) {
+    let pid = child.id() as libc::pid_t;
+    log::debug!("[claude-code][version] killing login shell process group pgid={pid}");
+    // SAFETY: `kill(2)` with a negative pid signals the process group led by
+    // `pid`. No `wait` has run yet, so the child is at worst a zombie and its
+    // pid cannot have been recycled by another process.
+    unsafe {
+        libc::kill(-pid, libc::SIGKILL);
+    }
+}
+
+#[cfg(not(unix))]
+fn kill_probe_tree(child: &mut std::process::Child) {
+    let _ = child.kill();
 }
 
 /// The ordered fallback candidates, split out so the list is unit-testable

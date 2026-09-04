@@ -180,7 +180,13 @@ export interface ComposioDisableTriggerResponse {
  * Mirrors the `SkillConnectionStatus` shape so the same
  * `UnifiedSkillCard` can render both.
  */
-type ComposioConnectionState = 'disconnected' | 'pending' | 'connected' | 'expired' | 'error';
+type ComposioConnectionState =
+  | 'disconnected'
+  | 'pending'
+  | 'connected'
+  | 'expired'
+  | 'revoked'
+  | 'error';
 
 export function deriveComposioState(
   connection: ComposioConnection | undefined
@@ -190,6 +196,12 @@ export function deriveComposioState(
   if (status === 'ACTIVE' || status === 'CONNECTED') return 'connected';
   if (status === 'PENDING' || status === 'INITIATED' || status === 'INITIALIZING') return 'pending';
   if (status === 'EXPIRED') return 'expired';
+  // A revoked grant is a real, previously-connected account whose access the
+  // provider took away — not "never connected". Folding it into `disconnected`
+  // rendered it identically to the ~118 toolkits the user never touched: no
+  // status text and a "Connect" call to action, with nothing saying the
+  // connection had existed and needs re-authorizing.
+  if (status === 'REVOKED') return 'revoked';
   if (status === 'FAILED' || status === 'ERROR') return 'error';
   return 'disconnected';
 }

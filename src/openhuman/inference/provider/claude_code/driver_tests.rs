@@ -251,11 +251,20 @@ fn a_missing_cli_is_a_setup_failure_even_when_the_spawn_itself_succeeded() {
     let dir = tempfile::tempdir().expect("tempdir");
     let absent = dir.path().join("claude");
 
-    let detail = super::cli_unusable_detail(&absent).expect("an absent binary is a setup failure");
+    let detail = unusable(super::probe_cli(&absent)).expect("an absent binary is a setup failure");
     assert!(
         detail.starts_with("[claude-code] `claude` CLI"),
         "detail must carry the setup marker: {detail}"
     );
+}
+
+/// The setup detail of a probe, or `None` for any other outcome — the shape the
+/// per-kind assertions below are written against.
+fn unusable(probe: super::CliProbe) -> Option<String> {
+    match probe {
+        super::CliProbe::Unusable(detail) => Some(detail),
+        _ => None,
+    }
 }
 
 #[cfg(unix)]
@@ -269,7 +278,7 @@ fn a_cli_that_lost_its_execute_bit_is_a_setup_failure() {
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o644)).expect("chmod");
 
     let detail =
-        super::cli_unusable_detail(&bin).expect("a non-executable binary is a setup failure");
+        unusable(super::probe_cli(&bin)).expect("a non-executable binary is a setup failure");
     assert!(detail.contains("not executable"), "{detail}");
 }
 
@@ -285,7 +294,92 @@ fn a_healthy_cli_is_not_reported_as_a_setup_failure() {
     std::fs::write(&bin, "#!/bin/sh\nexit 1\n").expect("write bin");
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).expect("chmod");
 
-    assert_eq!(super::cli_unusable_detail(&bin), None);
+    assert!(matches!(super::probe_cli(&bin), super::CliProbe::Healthy));
+}
+
+/// K1: every `stat` errno used to collapse into "is no longer present" and
+/// reach the user as a NON-RETRYABLE `provider_setup` failure. Two of them are
+/// install problems and must say which; every other one is not, and must not
+/// permanently mark the provider broken.
+///
+/// The classification is asserted through the real classifier
+/// (`web_chat::classify_inference_error`) rather than by eyeballing the string,
+/// because the marker prefix is the whole contract between these two modules.
+#[test]
+fn a_stat_failure_is_classified_by_kind_not_collapsed_into_absent() {
+    use crate::openhuman::web_chat::classify_inference_error;
+    use std::io::{Error, ErrorKind};
+
+    let bin = std::path::Path::new("/opt/tools/claude");
+
+    // NotFound: the binary really is gone. Setup failure, non-retryable.
+    let detail = unusable(super::metadata_failure(
+        bin,
+        &Error::from(ErrorKind::NotFound),
+    ))
+    .expect("NotFound is a setup failure");
+    assert!(
+        detail.contains("is no longer present"),
+        "NotFound must say the binary is absent: {detail}"
+    );
+    let classified = classify_inference_error(&detail);
+    assert_eq!(classified.error_type, "provider_setup");
+    assert!(!classified.retryable);
+
+    // PermissionDenied: also a setup failure, but the file may be fine and the
+    // fix is the permissions on the path — so it must NOT claim absence.
+    let detail = unusable(super::metadata_failure(
+        bin,
+        &Error::from(ErrorKind::PermissionDenied),
+    ))
+    .expect("PermissionDenied is a setup failure");
+    assert!(
+        detail.contains("permission denied"),
+        "PermissionDenied must name the permission problem: {detail}"
+    );
+    assert!(
+        !detail.contains("is no longer present"),
+        "a readable-but-unreadable binary is not absent: {detail}"
+    );
+    let classified = classify_inference_error(&detail);
+    assert_eq!(classified.error_type, "provider_setup");
+    assert!(!classified.retryable);
+
+    // Any other kind — EIO on a network mount, ELOOP, ENAMETOOLONG — says
+    // nothing about the install. The io text is carried, the setup marker is
+    // not, and the turn stays retryable.
+    let probe = super::metadata_failure(bin, &Error::new(ErrorKind::Other, "input/output error"));
+    let reason = match probe {
+        super::CliProbe::Indeterminate(reason) => reason,
+        super::CliProbe::Unusable(detail) => {
+            panic!("a transient io error must not mark the install broken: {detail}")
+        }
+        super::CliProbe::Healthy => panic!("a failed stat is not a healthy binary"),
+    };
+    assert!(
+        reason.contains("input/output error"),
+        "the io error text must survive: {reason}"
+    );
+
+    let err = super::spawn_error_for_probe(probe_other(), &"Resource busy (os error 16)");
+    let text = err.to_string();
+    assert!(
+        text.contains("input/output error") && text.contains("Resource busy"),
+        "both the spawn errno and the probe errno must be carried: {text}"
+    );
+    let classified = classify_inference_error(&text);
+    assert_ne!(
+        classified.error_type, "provider_setup",
+        "a transient io error must not classify as a setup failure: {text}"
+    );
+}
+
+/// A fresh `Indeterminate` probe, since `CliProbe` is moved when inspected.
+fn probe_other() -> super::CliProbe {
+    super::metadata_failure(
+        std::path::Path::new("/opt/tools/claude"),
+        &std::io::Error::new(std::io::ErrorKind::Other, "input/output error"),
+    )
 }
 
 /// A spawn failure caused by the working directory must not be blamed on the

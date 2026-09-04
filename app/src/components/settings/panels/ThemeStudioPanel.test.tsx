@@ -158,4 +158,55 @@ describe('<ThemeStudioPanel />', () => {
       colors: {},
     });
   });
+
+  // U18: deleting a custom theme is destructive and undoable only by rebuilding
+  // it by hand, so it must go through the same confirmation its siblings use.
+  describe('deleting a custom theme', () => {
+    const customTheme = {
+      id: 'custom-1',
+      name: 'My theme',
+      isDark: false,
+      builtIn: false,
+      colors: { surface: '1 2 3' },
+      fonts: {},
+    };
+    const withCustom = { ...themeState, activeThemeId: 'custom-1', customThemes: [customTheme] };
+
+    it('does not delete on the button click alone', async () => {
+      const { store } = renderWithProviders(<ThemeStudioPanel />, {
+        preloadedState: { theme: withCustom },
+        initialEntries: ['/settings/theme'],
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete theme' }));
+
+      expect(await screen.findByTestId('theme-delete-confirm')).toBeInTheDocument();
+      expect(store.getState().theme.customThemes).toHaveLength(1);
+    });
+
+    it('deletes once the confirmation is accepted', async () => {
+      const { store } = renderWithProviders(<ThemeStudioPanel />, {
+        preloadedState: { theme: withCustom },
+        initialEntries: ['/settings/theme'],
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete theme' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete' }));
+
+      expect(store.getState().theme.customThemes).toHaveLength(0);
+    });
+
+    it('keeps the theme when the confirmation is cancelled', async () => {
+      const { store } = renderWithProviders(<ThemeStudioPanel />, {
+        preloadedState: { theme: withCustom },
+        initialEntries: ['/settings/theme'],
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Delete theme' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Cancel' }));
+
+      expect(screen.queryByTestId('theme-delete-confirm')).not.toBeInTheDocument();
+      expect(store.getState().theme.customThemes).toHaveLength(1);
+    });
+  });
 });

@@ -3,6 +3,7 @@ import type { WalletStatus } from '../../../services/walletApi';
 import { Alert } from '../../ui/Alert';
 import Button from '../../ui/Button';
 import { CheckIcon, Spinner } from '../../ui/icons';
+import { MASKED_WORD } from './RecoveryPhraseGenerateMode';
 
 export interface RecoveryPhraseViewModeProps {
   statusError: string | null;
@@ -126,7 +127,11 @@ const RecoveryPhraseViewMode = ({
                   <span className="text-content-muted font-mono text-xs w-5 text-right">
                     {index + 1}.
                   </span>
-                  <span className="font-mono font-medium">{word}</span>
+                  {/* Not rendered until revealed — see the note in
+                      RecoveryPhraseGenerateMode: the blur is presentation only. */}
+                  <span className="font-mono font-medium" aria-hidden={!viewRevealed || undefined}>
+                    {viewRevealed ? word : MASKED_WORD}
+                  </span>
                 </div>
               ))}
             </div>

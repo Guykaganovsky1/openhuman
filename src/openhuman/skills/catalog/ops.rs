@@ -19,6 +19,11 @@ const DOWNLOAD_BASE_URL_ENV: &str = "OPENHUMAN_SKILL_REGISTRY_DOWNLOAD_BASE_URL"
 const REFRESH_ON_BOOT_ENV: &str = "OPENHUMAN_SKILL_REGISTRY_REFRESH_ON_BOOT";
 const FETCH_TIMEOUT_SECS: u64 = 180;
 
+/// Largest page a `browse` caller may ask for. The catalog holds ~90k entries
+/// (~39 MB serialized), so an unbounded `limit` would just re-create the whole
+/// payload the paging exists to avoid.
+pub const MAX_BROWSE_LIMIT: usize = 200;
+
 /// Single-flight gate for catalog fetches. On mount the skills explorer issues
 /// several catalog reads that each funnel into [`browse_catalog`] — `sources`
 /// and `browse` from two separate effects, plus `search` as the user types —
@@ -276,6 +281,101 @@ pub(crate) fn parse_catalog_json(body: &str) -> Result<Vec<serde_json::Value>, S
     serde_json::from_str(body).map_err(|e| format!("invalid catalog json: {e}"))
 }
 
+/// One window of the catalog, plus the size of the filtered set it was cut out
+/// of so a caller can render "60 / 90,696" and decide whether more pages exist.
+#[derive(Debug, Clone)]
+pub struct CatalogPage {
+    pub entries: Vec<CatalogEntry>,
+    pub total: usize,
+}
+
+/// Browse the catalog server-side: filter by `query` / `sources`, then return
+/// only the `offset .. offset + limit` window of the result.
+///
+/// `limit == None` returns everything from `offset` on — with all four
+/// arguments at their defaults this is exactly [`browse_catalog`], which is what
+/// keeps a legacy (`force_refresh`-only) call byte-identical.
+pub async fn browse_catalog_page(
+    force_refresh: bool,
+    query: Option<&str>,
+    sources: Option<&[String]>,
+    offset: usize,
+    limit: Option<usize>,
+) -> Result<CatalogPage, String> {
+    tracing::debug!(
+        force_refresh,
+        query = ?query,
+        sources = ?sources,
+        offset,
+        limit = ?limit,
+        "[skill_registry] browse_catalog_page"
+    );
+    let catalog = browse_catalog(force_refresh).await?;
+    let page = page_catalog(catalog, query, sources, offset, limit);
+    tracing::debug!(
+        returned = page.entries.len(),
+        total = page.total,
+        "[skill_registry] browse page cut"
+    );
+    Ok(page)
+}
+
+/// Pure filter-then-slice half of [`browse_catalog_page`], split out so the
+/// paging can be unit-tested without touching the cache or the network.
+fn page_catalog(
+    catalog: Vec<CatalogEntry>,
+    query: Option<&str>,
+    sources: Option<&[String]>,
+    offset: usize,
+    limit: Option<usize>,
+) -> CatalogPage {
+    let query = query
+        .map(|q| q.trim().to_lowercase())
+        .filter(|q| !q.is_empty());
+
+    let filtered: Vec<CatalogEntry> = catalog
+        .into_iter()
+        .filter(|entry| {
+            if let Some(allowed) = sources {
+                if !allowed.is_empty()
+                    && !allowed.iter().any(|s| entry.source.eq_ignore_ascii_case(s))
+                {
+                    return false;
+                }
+            }
+            match query.as_deref() {
+                Some(q) => entry_matches_query(entry, q),
+                None => true,
+            }
+        })
+        .collect();
+
+    let total = filtered.len();
+    // Clamp rather than reject: a caller asking for more than the cap gets the
+    // cap, never the 39 MB full catalog.
+    let entries = match limit.map(|l| l.min(MAX_BROWSE_LIMIT)) {
+        Some(limit) => filtered.into_iter().skip(offset).take(limit).collect(),
+        None => filtered.into_iter().skip(offset).collect(),
+    };
+    CatalogPage { entries, total }
+}
+
+/// Case-insensitive substring match over the fields the registry has always
+/// searched: name, description, tags, category, author. `q` must already be
+/// lowercased. Shared by [`search_catalog`] and [`page_catalog`] so the paged
+/// browse and the legacy search cannot drift apart.
+fn entry_matches_query(entry: &CatalogEntry, q: &str) -> bool {
+    entry.name.to_lowercase().contains(q)
+        || entry.description.to_lowercase().contains(q)
+        || entry.tags.iter().any(|t| t.to_lowercase().contains(q))
+        || entry.category.to_lowercase().contains(q)
+        || entry
+            .author
+            .as_deref()
+            .map(|a| a.to_lowercase().contains(q))
+            .unwrap_or(false)
+}
+
 /// Search the catalog by query string.
 pub async fn search_catalog(
     query: &str,
@@ -308,15 +408,7 @@ pub async fn search_catalog(
             if q.is_empty() {
                 return true;
             }
-            entry.name.to_lowercase().contains(&q)
-                || entry.description.to_lowercase().contains(&q)
-                || entry.tags.iter().any(|t| t.to_lowercase().contains(&q))
-                || entry.category.to_lowercase().contains(&q)
-                || entry
-                    .author
-                    .as_deref()
-                    .map(|a| a.to_lowercase().contains(&q))
-                    .unwrap_or(false)
+            entry_matches_query(entry, &q)
         })
         .collect();
 

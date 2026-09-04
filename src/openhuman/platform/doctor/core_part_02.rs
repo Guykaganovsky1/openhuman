@@ -1,15 +1,31 @@
 
 // ── Daemon state ────────────────────────────────────────────────
 
+/// Reports on `<config_dir>/daemon_state.json`.
+///
+/// **An absent state file is a pass, not a fault.** Nothing in the product
+/// writes that file — `service::daemon::state_file_path` only computes the path
+/// (`platform/service/README.md`: "consumed by doctor/health (not written
+/// here)"), and the only writer in the tree is the E2E service mock, which
+/// writes a different file. So a missing state file is the state of every
+/// install, and reporting it as an Error put one permanent red line in every
+/// `doctor.report`, which is how a health surface stops being read.
+///
+/// A file that exists but cannot be read or parsed stays an Error: that one is
+/// a real fault, because something did write it.
 fn check_daemon_state(config: &Config, items: &mut Vec<DiagnosticItem>) {
     let cat = "daemon";
     let state_file = crate::openhuman::platform::service::daemon::state_file_path(config);
 
     if !state_file.exists() {
-        items.push(DiagnosticItem::error(
+        log::debug!(
+            "[doctor] daemon state file absent at {} - reporting unsupervised, not a fault",
+            state_file.display()
+        );
+        items.push(DiagnosticItem::ok(
             cat,
             format!(
-                "state file not found: {} - is the daemon running?",
+                "not supervised by a daemon (no state file at {})",
                 state_file.display()
             ),
         ));

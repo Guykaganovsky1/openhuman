@@ -40,6 +40,9 @@ type Status =
   | { kind: 'loading' }
   | { kind: 'saving' }
   | { kind: 'saved' }
+  // A passing "Test connection" saves nothing, so reporting "Saved." for it
+  // told the user the wrong thing happened. It carries its own message.
+  | { kind: 'tested'; message: string }
   | { kind: 'error'; message: string };
 
 function isBackendSessionError(message: string | undefined): boolean {
@@ -398,7 +401,13 @@ const EmbeddingsPanel = ({ embedded = false }: EmbeddingsPanelProps = {}) => {
       const result = await testEmbeddingsConnection();
       if (result.success) {
         setManagedSessionMissing(false);
-        setStatus({ kind: 'saved' });
+        setStatus({
+          kind: 'tested',
+          message: t('settings.embeddings.testSuccess').replace(
+            '{dims}',
+            String(result.actual_dimensions ?? result.requested_dimensions ?? settings!.dimensions)
+          ),
+        });
       } else {
         const message = result.error ?? t('settings.embeddings.connectionTestFailed');
         if (selectedProvider === 'managed' && isBackendSessionError(message)) {
@@ -486,7 +495,13 @@ const EmbeddingsPanel = ({ embedded = false }: EmbeddingsPanelProps = {}) => {
         {/* Status bar */}
         <SettingsStatusLine
           saving={status.kind === 'saving'}
-          savedNote={status.kind === 'saved' ? t('settings.embeddings.saved') : null}
+          savedNote={
+            status.kind === 'saved'
+              ? t('settings.embeddings.saved')
+              : status.kind === 'tested'
+                ? status.message
+                : null
+          }
           error={
             status.kind === 'error'
               ? `${t('settings.embeddings.errorPrefix')}: ${status.message}`
