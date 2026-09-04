@@ -3629,6 +3629,7 @@ const messages: TranslationMap = {
   'notifications.flowGate.deny': 'Tolak',
   'notifications.flowGate.deciding': 'Bekerja…',
   'notifications.flowGate.error': 'Tidak bisa merekam keputusan Anda - coba lagi.',
+  'flowRuns.note': 'Catatan',
   'flowRuns.inspector.title': 'Detail proses',
   'flowRuns.inspector.startedAt': 'Dimulai',
   'flowRuns.inspector.finishedAt': 'Selesai',

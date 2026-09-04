@@ -324,6 +324,24 @@ describe('FlowRunInspectorDrawer', () => {
     expect(screen.getByTestId('flow-run-error-banner')).toHaveTextContent('node crashed');
   });
 
+  // U7: a trigger-only flow used to render a bare "Completed". The core now
+  // stamps its "no actionable nodes" note on the run row's only human-readable
+  // field, and a run that settled cleanly shows it as a NOTE, never as the
+  // destructive error banner.
+  it('shows a completed run.error as a muted note, not an error banner', () => {
+    useFlowRunPoller.mockReturnValue({
+      run: makeRun({
+        status: 'completed',
+        error: "This flow's graph has no actionable nodes beyond its trigger",
+      }),
+      loading: false,
+      error: null,
+    });
+    renderDrawer('thread-1', vi.fn());
+    expect(screen.getByTestId('flow-run-note')).toHaveTextContent('no actionable nodes');
+    expect(screen.queryByTestId('flow-run-error-banner')).not.toBeInTheDocument();
+  });
+
   it('calls onClose when the close button is clicked', () => {
     useFlowRunPoller.mockReturnValue({ run: makeRun(), loading: false, error: null });
     const onClose = vi.fn();

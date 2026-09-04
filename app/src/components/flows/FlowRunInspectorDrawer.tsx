@@ -37,6 +37,7 @@ import {
   flowRunStatusAccentClass,
   flowRunStatusDotClass,
   flowRunStatusLabel,
+  isCleanTerminalRun,
 } from './FlowRunStatus';
 import { RunItemDataBrowser } from './RunItemDataBrowser';
 
@@ -354,14 +355,30 @@ export function FlowRunInspectorDrawer({ runId, onClose, onFixWithAgent }: Props
                 ) : null}
               </div>
 
-              {/* Error banner */}
-              {run.error && (
-                <Alert variant="destructive" density="compact" data-testid="flow-run-error-banner">
-                  <AlertDescription>
-                    {t('flowRuns.inspector.error')}: {run.error}
-                  </AlertDescription>
-                </Alert>
-              )}
+              {/* Error banner — or, for a run that settled cleanly, a note.
+                  `FlowRun.error` is the row's only human-readable message
+                  field, so the core also uses it to say a completed run had
+                  nothing to do (U7: a trigger with no wired action node
+                  "Completed" while doing no work). That is advisory, not a
+                  failure, so it renders muted rather than as a destructive
+                  alert next to a green "Completed" pill. */}
+              {run.error &&
+                (isCleanTerminalRun(run.status) ? (
+                  <p
+                    className="text-xs leading-snug text-content-muted"
+                    data-testid="flow-run-note">
+                    {t('flowRuns.note')}: {run.error}
+                  </p>
+                ) : (
+                  <Alert
+                    variant="destructive"
+                    density="compact"
+                    data-testid="flow-run-error-banner">
+                    <AlertDescription>
+                      {t('flowRuns.inspector.error')}: {run.error}
+                    </AlertDescription>
+                  </Alert>
+                ))}
 
               {/* Repair entry point (Phase 5c): open the canvas copilot preloaded
                   with this failed run so the workflow builder can propose a fix. */}

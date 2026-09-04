@@ -278,7 +278,15 @@ pub fn flows_validate(graph_json: Value) -> RpcOutcome<crate::openhuman::flows::
         );
     }
 
-    let warnings = graph_trigger_warnings(&graph);
+    let mut warnings = graph_trigger_warnings(&graph);
+    // U7: a graph whose trigger reaches no action node is structurally valid
+    // (saving a trigger-only draft stays allowed) but a run of it completes
+    // without doing anything — the run path already says so after the fact
+    // (`NO_ACTIONABLE_NODES_NOTE`); say it at author time too, as a warning on
+    // the same advisory channel, so the editor can show it before the run.
+    if !graph_has_actionable_nodes(&graph) {
+        warnings.push(NO_ACTIONABLE_NODES_WARNING.to_string());
+    }
     for warning in &warnings {
         tracing::warn!(target: "flows", warning = %warning, "[flows] flows_validate: non-fatal validation warning");
     }

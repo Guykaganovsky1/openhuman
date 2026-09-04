@@ -3614,6 +3614,7 @@ const messages: TranslationMap = {
   'notifications.flowGate.deny': 'প্রত্যাখ্যান করুন',
   'notifications.flowGate.deciding': 'চলমান...',
   'notifications.flowGate.error': 'আপনার সিদ্ধান্তের কথা রেকর্ড করা যায় নি: আবার চেষ্টা করুন ।',
+  'flowRuns.note': 'দ্রষ্টব্য',
   'flowRuns.inspector.title': 'রান বিবরণ',
   'flowRuns.inspector.startedAt': 'শুরু হয়েছে',
   'flowRuns.inspector.finishedAt': 'শেষ হয়েছে',

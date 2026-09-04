@@ -448,6 +448,66 @@ async fn search_rejects_stale_and_fetches_fresh() {
     std::env::remove_var(CACHE_DIR_ENV);
 }
 
+/// The function the RPC calls, not only its predicate: a filtered page must
+/// reach the fetcher when the cache is stale, and cut its page from what the
+/// fetcher returned.
+#[tokio::test]
+async fn a_filtered_browse_page_rejects_a_stale_cache_and_pages_the_fresh_one() {
+    let _env = env_lock();
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::set_var(CACHE_DIR_ENV, tmp.path());
+    write_cache_at(tmp.path(), vec![sample_entry()], 1); // stale: 1 entry
+
+    let called = Arc::new(AtomicBool::new(false));
+    let called_in = called.clone();
+    let page = browse_catalog_page_with(false, Some("notes"), None, 0, None, move || async move {
+        called_in.store(true, AtomicOrdering::SeqCst);
+        let fresh = vec![sample_entry(), sample_entry()];
+        store::save_catalog_cache(&fresh);
+        Ok(fresh)
+    })
+    .await
+    .unwrap();
+
+    assert!(
+        called.load(AtomicOrdering::SeqCst),
+        "a filtered page must not be cut from a stale cache"
+    );
+    assert_eq!(page.total, 2, "the page is cut from the fresh catalog");
+    assert_eq!(page.entries.len(), 2);
+
+    store::clear_cache();
+    std::env::remove_var(CACHE_DIR_ENV);
+}
+
+/// The unfiltered default keeps the fast path: a stale cache is served as-is
+/// with no foreground fetch.
+#[tokio::test]
+async fn an_unfiltered_browse_page_still_serves_a_stale_cache() {
+    let _env = env_lock();
+    let tmp = tempfile::tempdir().unwrap();
+    std::env::set_var(CACHE_DIR_ENV, tmp.path());
+    write_cache_at(tmp.path(), vec![sample_entry()], 1); // stale: 1 entry
+
+    let called = Arc::new(AtomicBool::new(false));
+    let called_in = called.clone();
+    let page = browse_catalog_page_with(false, None, None, 0, None, move || async move {
+        called_in.store(true, AtomicOrdering::SeqCst);
+        Ok(Vec::new())
+    })
+    .await
+    .unwrap();
+
+    assert!(
+        !called.load(AtomicOrdering::SeqCst),
+        "an unfiltered page is served from the stale cache without a foreground fetch"
+    );
+    assert_eq!(page.total, 1, "the stale catalog is what gets paged");
+
+    store::clear_cache();
+    std::env::remove_var(CACHE_DIR_ENV);
+}
+
 /// The predicate that decides whether a browse may be answered from a stale
 /// cache. An empty query or an empty source list is the unfiltered default and
 /// must stay on the fast path.

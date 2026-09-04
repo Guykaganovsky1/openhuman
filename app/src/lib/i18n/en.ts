@@ -4185,6 +4185,10 @@ const en: TranslationMap = {
   'notifications.flowGate.deny': 'Deny',
   'notifications.flowGate.deciding': 'Working…',
   'notifications.flowGate.error': 'Could not record your decision. Please try again.',
+  // Label for a message the core attached to a run that settled cleanly (today:
+  // "this flow has no actionable nodes, the run completed without doing
+  // anything"). Rendered muted, unlike `flowRuns.inspector.error`.
+  'flowRuns.note': 'Note',
   'flowRuns.inspector.title': 'Run details',
   'flowRuns.inspector.startedAt': 'Started',
   'flowRuns.inspector.finishedAt': 'Finished',

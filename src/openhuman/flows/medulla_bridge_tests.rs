@@ -231,6 +231,35 @@ fn run_json_emits_epoch_millis_and_omits_what_it_cannot_read() {
     assert!(value.get("steps").is_none(), "{value}");
 }
 
+/// The core stamps a completed no-op run's note onto the row's `error` field
+/// (its only human-readable field). On the medulla wire `error` means the run
+/// failed, so a clean run's note never crosses; a failed run's reason still does.
+#[test]
+fn run_json_keeps_a_clean_runs_note_off_the_error_field() {
+    let mut run = super::super::types::FlowRun {
+        id: "r1".to_string(),
+        flow_id: "f1".to_string(),
+        thread_id: "r1".to_string(),
+        status: "completed".to_string(),
+        started_at: "2026-01-01T00:00:00Z".to_string(),
+        finished_at: Some("2026-01-01T00:00:01Z".to_string()),
+        steps: Vec::new(),
+        pending_approvals: Vec::new(),
+        error: Some("This flow's graph has no actionable nodes beyond its trigger".to_string()),
+        graph_hash: None,
+    };
+    let value = run_json(&run);
+    assert_eq!(value["status"], "completed");
+    assert!(value.get("error").is_none(), "{value}");
+
+    run.status = "completed_with_warnings".to_string();
+    assert!(run_json(&run).get("error").is_none());
+
+    run.status = "failed".to_string();
+    run.error = Some("boom".to_string());
+    assert_eq!(run_json(&run)["error"], "boom");
+}
+
 // ── the store reads, over a real SQLite store ────────────────────────────────
 
 /// Drive a synchronous bridge read the way the transport does — from a blocking

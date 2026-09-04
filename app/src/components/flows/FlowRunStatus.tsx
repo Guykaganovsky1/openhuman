@@ -69,6 +69,18 @@ export function flowRunStatusLabel(status: FlowRunStatusValue, t: Translate): st
   return key ? t(key, fallback) : fallback;
 }
 
+/**
+ * Whether a run settled WITHOUT failing. Load-bearing for how a run's message
+ * is rendered: `FlowRun.error` is the row's only human-readable message field,
+ * so the core also uses it to note that a run completed having nothing to do
+ * (U7 — a trigger with no wired action node used to read as a plain success).
+ * On these statuses that text is a note and renders muted; on every other
+ * status it is a failure reason and keeps its destructive treatment.
+ */
+export function isCleanTerminalRun(status: FlowRunStatusValue): boolean {
+  return status === 'completed' || status === 'completed_with_warnings';
+}
+
 export type FlowRunStatusPresentation = 'badge' | 'dot';
 
 export interface FlowRunStatusProps {

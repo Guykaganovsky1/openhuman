@@ -3413,6 +3413,7 @@ const messages: TranslationMap = {
   'notifications.flowGate.deny': '拒绝',
   'notifications.flowGate.deciding': '处理中…',
   'notifications.flowGate.error': '无法记录你的决定：请重试。',
+  'flowRuns.note': '说明',
   'flowRuns.inspector.title': '运行详情',
   'flowRuns.inspector.startedAt': '开始时间',
   'flowRuns.inspector.finishedAt': '结束时间',

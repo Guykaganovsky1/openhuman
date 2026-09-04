@@ -172,6 +172,25 @@ describe('FlowRunsDrawer', () => {
     expect(row).toHaveTextContent('Completed with warnings');
   });
 
+  // U7: a run of a trigger-only flow completes without doing anything. The core
+  // stamps that note on the row, and the list must show it so "Completed" alone
+  // can't read as work done. A failed run's reason stays in the inspector.
+  it('shows the "nothing ran" note under a completed run, but not under a failed one', async () => {
+    listFlowRuns.mockResolvedValue([
+      makeRun({
+        id: 'run-1',
+        status: 'completed',
+        error: "This flow's graph has no actionable nodes beyond its trigger",
+      }),
+      makeRun({ id: 'run-2', status: 'failed', error: 'node crashed' }),
+    ]);
+    renderDrawer('flow-1', vi.fn());
+
+    const note = await screen.findByTestId('flow-run-row-note-run-1');
+    expect(note).toHaveTextContent('no actionable nodes');
+    expect(screen.queryByTestId('flow-run-row-note-run-2')).not.toBeInTheDocument();
+  });
+
   it('falls back to a humanized label instead of "undefined" for an unrecognized status (F-m8)', async () => {
     // Run payloads are cast, never validated — a future/unknown status the
     // frontend doesn't recognize yet must not render literal "undefined".

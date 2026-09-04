@@ -39,7 +39,7 @@ import {
 import { useT } from '../../lib/i18n/I18nContext';
 import { Button, CenteredLoadingState, EmptyState, ErrorBanner } from '../ui';
 import { type FlowRepairRequest, FlowRunInspectorDrawer } from './FlowRunInspectorDrawer';
-import { FlowRunStatus, flowRunStatusLabel } from './FlowRunStatus';
+import { FlowRunStatus, flowRunStatusLabel, isCleanTerminalRun } from './FlowRunStatus';
 
 const log = debug('flows:runs-drawer');
 
@@ -201,6 +201,18 @@ function FlowRunsDrawer({ flowId, flowName, onClose, onFixWithAgent }: Props) {
                           {run.id.slice(0, 8)}
                         </span>
                       </Button>
+                      {/* A run that settled cleanly but had nothing to do
+                          carries the core's note on `FlowRun.error` (U7) —
+                          show it under the row so "Completed" alone can't read
+                          as work done. A failure reason keeps its own
+                          treatment inside the inspector this row opens. */}
+                      {run.error && isCleanTerminalRun(displayStatus) && (
+                        <p
+                          data-testid={`flow-run-row-note-${run.id}`}
+                          className="px-3 pt-1 text-[11px] leading-snug text-content-muted">
+                          {t('flowRuns.note')}: {run.error}
+                        </p>
+                      )}
                     </li>
                   );
                 })}

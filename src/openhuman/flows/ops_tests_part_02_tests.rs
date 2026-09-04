@@ -175,6 +175,100 @@ async fn flows_run_on_trigger_only_graph_surfaces_no_actionable_nodes_note() {
     assert_eq!(reloaded.value.last_status.as_deref(), Some("completed"));
 }
 
+/// U7: the note above lives on `flows_run`'s own RPC result, which the UI never
+/// reads — it starts runs through `flows_run_detached` and then reads the run
+/// back through `flows_list_runs` / `flows_get_run`. Those rows used to say a
+/// bare `"completed"`, which is how three runs of a trigger-only flow read as
+/// plain successes in the live audit. The note must reach the persisted row.
+#[tokio::test]
+async fn a_no_actionable_nodes_run_carries_the_note_on_the_row_the_ui_reads() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let created = flows_create(&config, "empty".to_string(), trigger_only_graph(), false)
+        .await
+        .unwrap();
+
+    let run = flows_run(
+        &config,
+        &created.value.id,
+        json!({}),
+        serde_json::Map::new(),
+        FlowRunTrigger::Rpc,
+    )
+    .await
+    .unwrap();
+    let run_id = run.value["thread_id"].as_str().unwrap().to_string();
+
+    // Detail (`flows_get_run`) — the run-inspector's source.
+    let detail = flows_get_run(&config, &run_id).await.unwrap().value;
+    assert_eq!(
+        detail.status, "completed",
+        "an empty flow still completes — this is a note, not a failure"
+    );
+    let note = detail
+        .error
+        .as_deref()
+        .expect("the completed-with-nothing-to-do run must carry the note on the row");
+    assert!(
+        note.contains("no actionable nodes"),
+        "row note must explain that nothing ran, got: {note}"
+    );
+
+    // List (`flows_list_runs`) — the runs sidebar/drawer's source.
+    let listed = flows_list_runs(&config, &created.value.id, 10)
+        .await
+        .unwrap()
+        .value;
+    assert_eq!(listed.len(), 1);
+    assert!(
+        listed[0]
+            .error
+            .as_deref()
+            .is_some_and(|n| n.contains("no actionable nodes")),
+        "the listed run must carry the note too, got: {:?}",
+        listed[0].error
+    );
+}
+
+/// The other half: a run that actually had work to do must leave `error`
+/// untouched, so the note can never be mistaken for a permanent fixture of a
+/// completed run.
+#[tokio::test]
+async fn a_run_with_actionable_nodes_leaves_the_row_note_empty() {
+    let tmp = TempDir::new().unwrap();
+    let config = test_config(&tmp);
+    let graph = json!({
+        "name": "has-work",
+        "nodes": [
+            { "id": "t", "kind": "trigger", "name": "Trigger" },
+            { "id": "downstream", "kind": "output_parser", "name": "Downstream" }
+        ],
+        "edges": [ { "from_node": "t", "to_node": "downstream" } ]
+    });
+    let created = flows_create(&config, "has-work".to_string(), graph, false)
+        .await
+        .unwrap();
+
+    let run = flows_run(
+        &config,
+        &created.value.id,
+        json!({}),
+        serde_json::Map::new(),
+        FlowRunTrigger::Rpc,
+    )
+    .await
+    .unwrap();
+    let run_id = run.value["thread_id"].as_str().unwrap().to_string();
+
+    let detail = flows_get_run(&config, &run_id).await.unwrap().value;
+    assert_eq!(detail.status, "completed");
+    assert!(
+        detail.error.is_none(),
+        "a run that did real work must not carry the empty-flow note: {:?}",
+        detail.error
+    );
+}
+
 /// A graph with a real downstream node, wired up by an edge, must NOT carry
 /// the "nothing to run" note — only a graph with no actionable nodes at all.
 /// Uses `output_parser` nodes (like the approval-gated fixture above) rather

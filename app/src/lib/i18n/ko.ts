@@ -3576,6 +3576,7 @@ const messages: TranslationMap = {
   'notifications.flowGate.deny': '거부',
   'notifications.flowGate.deciding': '작업 중…',
   'notifications.flowGate.error': '결정을 기록할 수 없습니다. 다시 시도하세요.',
+  'flowRuns.note': '참고',
   'flowRuns.inspector.title': '실행 세부정보',
   'flowRuns.inspector.startedAt': '시작됨',
   'flowRuns.inspector.finishedAt': '종료됨',

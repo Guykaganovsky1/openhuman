@@ -3703,6 +3703,7 @@ const messages: TranslationMap = {
   'notifications.flowGate.deny': 'Refuser',
   'notifications.flowGate.deciding': 'Travail en cours…',
   'notifications.flowGate.error': "Impossible d'enregistrer votre décision: veuillez réessayer.",
+  'flowRuns.note': 'Remarque',
   'flowRuns.inspector.title': "Détails de l'exécution",
   'flowRuns.inspector.startedAt': 'Démarré',
   'flowRuns.inspector.finishedAt': 'Terminé',

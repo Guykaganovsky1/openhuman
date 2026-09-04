@@ -115,6 +115,41 @@ describe('WorkflowRunsPage', () => {
     expect(screen.getByText('boom')).toBeInTheDocument();
   });
 
+  // U7: the core stamps its "no actionable nodes" note on the run row's only
+  // human-readable field (`error`) for a run that completed doing nothing, so
+  // "Completed" alone can't read as work done. It's a note, not a failure —
+  // muted, never coral.
+  it('renders a completed run note muted, and a failure reason coral', async () => {
+    listAllFlowRuns.mockResolvedValue([
+      {
+        id: 'r1',
+        flow_id: 'f1',
+        status: 'completed',
+        started_at: '2026-01-01T00:00:00Z',
+        error: "This flow's graph has no actionable nodes beyond its trigger",
+      },
+      {
+        id: 'r2',
+        flow_id: 'f1',
+        status: 'failed',
+        started_at: '2026-01-02T00:00:00Z',
+        error: 'boom',
+      },
+    ]);
+    listFlows.mockResolvedValue([{ id: 'f1', name: 'Daily digest' }]);
+
+    render(<WorkflowRunsPage />);
+
+    const note = await screen.findByTestId('workflow-run-note-r1');
+    expect(note).toHaveTextContent('no actionable nodes');
+    expect(note).toHaveClass('text-content-muted');
+    expect(note).not.toHaveClass('text-coral-600');
+
+    const failure = screen.getByTestId('workflow-run-note-r2');
+    expect(failure).toHaveTextContent('boom');
+    expect(failure).toHaveClass('text-coral-600');
+  });
+
   it('shows the empty state when there are no runs', async () => {
     listAllFlowRuns.mockResolvedValue([]);
     listFlows.mockResolvedValue([]);

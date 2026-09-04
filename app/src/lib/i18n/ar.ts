@@ -3528,6 +3528,7 @@ const messages: TranslationMap = {
   'notifications.flowGate.deny': 'رفض',
   'notifications.flowGate.deciding': 'جارٍ العمل…',
   'notifications.flowGate.error': 'تعذّر تسجيل قرارك. حاول مرة أخرى.',
+  'flowRuns.note': 'ملاحظة',
   'flowRuns.inspector.title': 'تفاصيل التشغيل',
   'flowRuns.inspector.startedAt': 'بدأ',
   'flowRuns.inspector.finishedAt': 'انتهى',

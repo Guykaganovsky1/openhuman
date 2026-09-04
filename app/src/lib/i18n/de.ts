@@ -3715,6 +3715,7 @@ const messages: TranslationMap = {
   'notifications.flowGate.deciding': 'Arbeiten…',
   'notifications.flowGate.error':
     'Deine Entscheidung konnte nicht gespeichert werden: bitte versuche es erneut.',
+  'flowRuns.note': 'Hinweis',
   'flowRuns.inspector.title': 'Laufdetails',
   'flowRuns.inspector.startedAt': 'Gestartet',
   'flowRuns.inspector.finishedAt': 'Beendet',

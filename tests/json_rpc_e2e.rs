@@ -12034,16 +12034,19 @@ async fn json_rpc_flows_validate_reports_warnings_and_errors() {
         .get("warnings")
         .and_then(Value::as_array)
         .expect("warnings");
-    assert_eq!(
-        warnings.len(),
-        1,
-        "webhook trigger emits exactly one warning"
-    );
     assert!(
-        warnings[0]
+        warnings.iter().any(|w| w
             .as_str()
-            .is_some_and(|w| w.contains("does not fire automatically")),
+            .is_some_and(|w| w.contains("does not fire automatically"))),
         "webhook warning must explain the trigger will not fire on its own, got: {warnings:?}"
+    );
+    // The graph is trigger-only, so U7's advisory "nothing to do" warning rides
+    // along on the same channel.
+    assert!(
+        warnings.iter().any(|w| w
+            .as_str()
+            .is_some_and(|w| w.contains("no actionable nodes"))),
+        "a trigger-only graph must also warn that a run would do nothing, got: {warnings:?}"
     );
 
     // 2. Schedule trigger — fires automatically → no warning.
@@ -12064,10 +12067,11 @@ async fn json_rpc_flows_validate_reports_warnings_and_errors() {
     let vs = peel_logs_envelope(assert_no_jsonrpc_error(&validate_sched, "flows_validate"));
     assert_eq!(vs.get("valid").and_then(Value::as_bool), Some(true));
     assert!(
-        vs.get("warnings")
+        !vs.get("warnings")
             .and_then(Value::as_array)
             .expect("warnings")
-            .is_empty(),
+            .iter()
+            .any(|w| w.as_str().is_some_and(|w| w.contains("does not fire"))),
         "a schedule trigger fires automatically — no unfired-kind warning"
     );
 

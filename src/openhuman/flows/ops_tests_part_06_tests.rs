@@ -174,15 +174,14 @@ fn flows_validate_warns_on_unfired_webhook_trigger() {
     let outcome = flows_validate(webhook_trigger_graph());
     assert!(outcome.value.valid, "a webhook graph is structurally valid");
     assert!(outcome.value.errors.is_empty());
-    assert_eq!(
-        outcome.value.warnings.len(),
-        1,
-        "an unfired webhook trigger must produce exactly one warning: {:?}",
-        outcome.value.warnings
-    );
+    // The fixture is trigger-only, so U7's "nothing to do" warning rides along
+    // with the unfired-trigger one — both are advisory, neither blocks a save.
     assert!(
-        outcome.value.warnings[0].contains("webhook")
-            && outcome.value.warnings[0].contains("does not fire"),
+        outcome
+            .value
+            .warnings
+            .iter()
+            .any(|w| w.contains("webhook") && w.contains("does not fire")),
         "warning must name the kind and explain it does not fire: {:?}",
         outcome.value.warnings
     );
@@ -193,8 +192,59 @@ fn flows_validate_does_not_warn_on_schedule_trigger() {
     let outcome = flows_validate(schedule_trigger_graph("0 9 * * *"));
     assert!(outcome.value.valid);
     assert!(
-        outcome.value.warnings.is_empty(),
-        "a schedule trigger fires — it must not warn: {:?}",
+        !outcome
+            .value
+            .warnings
+            .iter()
+            .any(|w| w.contains("does not fire")),
+        "a schedule trigger fires — it must not warn about firing: {:?}",
+        outcome.value.warnings
+    );
+}
+
+/// U7: a trigger-only graph validates clean (a trigger-only draft must stay
+/// saveable) but must WARN that a run of it will do nothing — the audit found
+/// such a flow validating with no warning at all and then reporting a bare
+/// "Completed" for three runs that did nothing.
+#[test]
+fn flows_validate_warns_when_the_graph_has_no_actionable_nodes() {
+    let outcome = flows_validate(trigger_only_graph());
+    assert!(
+        outcome.value.valid,
+        "a trigger-only graph is structurally valid: {:?}",
+        outcome.value.errors
+    );
+    assert!(
+        outcome
+            .value
+            .warnings
+            .iter()
+            .any(|w| w.contains("no actionable nodes")),
+        "a trigger-only graph must warn that a run will do nothing: {:?}",
+        outcome.value.warnings
+    );
+}
+
+/// The other half of the U7 warning: a graph whose trigger actually reaches a
+/// downstream node must NOT carry it.
+#[test]
+fn flows_validate_does_not_warn_when_an_action_node_is_wired() {
+    let outcome = flows_validate(json!({
+        "name": "has-work",
+        "nodes": [
+            { "id": "t", "kind": "trigger", "name": "Trigger" },
+            { "id": "downstream", "kind": "output_parser", "name": "Downstream" }
+        ],
+        "edges": [ { "from_node": "t", "to_node": "downstream" } ]
+    }));
+    assert!(outcome.value.valid);
+    assert!(
+        !outcome
+            .value
+            .warnings
+            .iter()
+            .any(|w| w.contains("no actionable nodes")),
+        "a wired graph must not get the empty-flow warning: {:?}",
         outcome.value.warnings
     );
 }

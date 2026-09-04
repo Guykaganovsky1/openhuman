@@ -398,10 +398,25 @@ fn run_json(run: &super::types::FlowRun) -> Value {
     if let Some(finished) = run.finished_at.as_deref().and_then(epoch_millis) {
         value["finishedAt"] = json!(finished);
     }
-    if let Some(error) = run.error.as_deref().filter(|error| !error.is_empty()) {
-        value["error"] = json!(error);
+    // On this wire `error` means "why it failed", and the port's reader has
+    // only `status` and `error` to go on. A run that settled cleanly can still
+    // carry text on the row's `error` field — the core stamps the "no
+    // actionable nodes" note there because it is the row's only
+    // human-readable field — so that text stays off the wire: forwarding it
+    // would report a completed run as failed to a reader that branches on
+    // "error present".
+    if !settled_cleanly(&run.status) {
+        if let Some(error) = run.error.as_deref().filter(|error| !error.is_empty()) {
+            value["error"] = json!(error);
+        }
     }
     value
+}
+
+/// Whether a run's terminal status means it did not fail. Mirrors the UI's
+/// `isCleanTerminalRun` in `app/src/components/flows/FlowRunStatus.tsx`.
+fn settled_cleanly(status: &str) -> bool {
+    matches!(status, "completed" | "completed_with_warnings")
 }
 
 /// RFC3339 → epoch milliseconds, or `None` for a stamp this build cannot read.

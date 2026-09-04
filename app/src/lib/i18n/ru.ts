@@ -3646,6 +3646,7 @@ const messages: TranslationMap = {
   'notifications.flowGate.deny': 'Отклонить',
   'notifications.flowGate.deciding': 'Выполняется…',
   'notifications.flowGate.error': 'Не удалось записать свое решение: попробуйте еще раз.',
+  'flowRuns.note': 'Примечание',
   'flowRuns.inspector.title': 'Детали запуска',
   'flowRuns.inspector.startedAt': 'Начато',
   'flowRuns.inspector.finishedAt': 'Завершено',

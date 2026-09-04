@@ -1,4 +1,25 @@
 
+/// Run-time wording of the "this graph had nothing to do" problem. Surfaced
+/// three ways for one run: as `note` on `flows_run`'s own RPC result, as a log
+/// line on that outcome, and — since U7 — persisted on the run row's `error`
+/// field so `flows_list_runs`/`flows_get_run` (what the UI actually reads
+/// after a detached run) can show it beside the `"completed"` status instead
+/// of reporting a bare success.
+pub(crate) const NO_ACTIONABLE_NODES_NOTE: &str =
+    "This flow's graph has no actionable nodes beyond its trigger (no downstream action nodes, \
+     or no edges connecting them) — the run completed without doing anything. Add and wire up \
+     at least one action node.";
+
+/// Author-time wording of the "this graph has nothing to do" problem (U7).
+/// The run-time counterpart is [`NO_ACTIONABLE_NODES_NOTE`], which reports the
+/// same fact after a run has already completed for nothing; this one is
+/// appended to `flows_validate`'s advisory `warnings` so the editor can say it
+/// before the user hits Run.
+pub(crate) const NO_ACTIONABLE_NODES_WARNING: &str =
+    "This flow has no actionable nodes beyond its trigger (no downstream action nodes, or no \
+     edges connecting them) — it can be saved and enabled, but a run will complete without \
+     doing anything. Add and wire up at least one action node.";
+
 /// Produces host-side, **non-fatal** validation warnings for a graph — today
 /// exactly one: "this trigger kind does not fire automatically yet". Returns
 /// an empty vec when the trigger fires (`manual`/`schedule`/`app_event`), when

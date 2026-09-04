@@ -3664,6 +3664,7 @@ const messages: TranslationMap = {
   'notifications.flowGate.deny': 'Odrzuć',
   'notifications.flowGate.deciding': 'Przetwarzanie…',
   'notifications.flowGate.error': 'Nie udało się zapisać decyzji: spróbuj ponownie.',
+  'flowRuns.note': 'Uwaga',
   'flowRuns.inspector.title': 'Szczegóły przebiegu',
   'flowRuns.inspector.startedAt': 'Rozpoczęto',
   'flowRuns.inspector.finishedAt': 'Zakończono',

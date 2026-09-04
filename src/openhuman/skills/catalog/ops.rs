@@ -302,6 +302,32 @@ pub async fn browse_catalog_page(
     offset: usize,
     limit: Option<usize>,
 ) -> Result<CatalogPage, String> {
+    browse_catalog_page_with(
+        force_refresh,
+        query,
+        sources,
+        offset,
+        limit,
+        fetch_catalog_uncached,
+    )
+    .await
+}
+
+/// `browse_catalog_page` with the fetcher injected, so the stale-cache
+/// decision below is testable at the function the RPC actually calls rather
+/// than only at its predicate.
+async fn browse_catalog_page_with<F, Fut>(
+    force_refresh: bool,
+    query: Option<&str>,
+    sources: Option<&[String]>,
+    offset: usize,
+    limit: Option<usize>,
+    fetch: F,
+) -> Result<CatalogPage, String>
+where
+    F: FnOnce() -> Fut,
+    Fut: Future<Output = Result<Vec<CatalogEntry>, String>>,
+{
     tracing::debug!(
         force_refresh,
         query = ?query,
@@ -310,18 +336,18 @@ pub async fn browse_catalog_page(
         limit = ?limit,
         "[skill_registry] browse_catalog_page"
     );
-    // A filtered read may not be computed over a stale catalog. `browse_catalog`
-    // serves a stale cache while it revalidates, which is right for "show me the
-    // catalog" — the user sees rows immediately and they refresh underneath. It
-    // is wrong for "show me the rows matching X": a skill that has just appeared
-    // or changed is simply absent from the answer, and the caller has no way to
-    // tell that from "no such skill". `browse_catalog_fresh` exists for exactly
-    // this, so the filtered path takes it, keeping the caller's `force_refresh`.
-    let catalog = if is_filtered_read(query, sources) {
-        browse_catalog_with(force_refresh, StaleMode::Reject, fetch_catalog_uncached).await?
+    // A filtered read may not be computed over a stale catalog. The unfiltered
+    // read serves a stale cache while it revalidates, which is right for "show
+    // me the catalog" — the user sees rows immediately and they refresh
+    // underneath. It is wrong for "show me the rows matching X": a skill that
+    // has just appeared is simply absent, and the caller cannot tell that from
+    // "no match". So a filtered read rejects a stale cache and fetches.
+    let stale_mode = if is_filtered_read(query, sources) {
+        StaleMode::Reject
     } else {
-        browse_catalog(force_refresh).await?
+        StaleMode::Allow
     };
+    let catalog = browse_catalog_with(force_refresh, stale_mode, fetch).await?;
     let page = page_catalog(catalog, query, sources, offset, limit);
     tracing::debug!(
         returned = page.entries.len(),

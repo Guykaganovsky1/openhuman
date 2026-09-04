@@ -271,7 +271,23 @@ async fn run_flow_body(
     let outcome = journaled.outcome;
 
     let settled = settle_steps(config, &thread_id, &outcome.output);
-    let (status, error) = finalize_terminal_status(&settled, &outcome.pending_approvals);
+    let (status, mut error) = finalize_terminal_status(&settled, &outcome.pending_approvals);
+    // U7: the "nothing ran" note used to live ONLY in this call's own RPC
+    // result, which the UI never sees — it starts runs through
+    // `flows_run_detached` and then reads the run back through
+    // `flows_list_runs`/`flows_get_run`, where the row said a bare
+    // `"completed"`. Persist the note on the row's existing `error` field (the
+    // only human-readable field `FlowRun` carries) for a run that settled
+    // cleanly with nothing to do, so the run list/detail can say so.
+    if no_actionable_nodes && error.is_none() && status == "completed" {
+        tracing::info!(
+            target: "flows",
+            flow_id = %flow_id,
+            run_id = %thread_id,
+            "[flows] flows_run: completed with no actionable nodes — stamping the note on the run row"
+        );
+        error = Some(NO_ACTIONABLE_NODES_NOTE.to_string());
+    }
     // T-M1: pin the graph this run just executed only on the write that parks
     // it — `flows_resume` recomputes and compares this hash against the
     // *current* flow graph before it will honour the approval. See
@@ -318,10 +334,6 @@ async fn run_flow_body(
         no_actionable_nodes,
         "[flows] flows_run: finished"
     );
-
-    const NO_ACTIONABLE_NODES_NOTE: &str = "This flow's graph has no actionable nodes beyond \
-         its trigger (no downstream action nodes, or no edges connecting them) — the run \
-         completed without doing anything. Add and wire up at least one action node.";
 
     let mut result = json!({
         "output": outcome.output,

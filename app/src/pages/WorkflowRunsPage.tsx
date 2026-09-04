@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import { FlowRunStatus } from '../components/flows/FlowRunStatus';
+import { FlowRunStatus, isCleanTerminalRun } from '../components/flows/FlowRunStatus';
 import SettingsTabbedPage from '../components/settings/layout/SettingsTabbedPage';
 import { CenteredLoadingState, ErrorBanner } from '../components/ui/LoadingState';
 import { useFlowRunFinished } from '../hooks/useFlowRunFinished';
@@ -121,8 +121,20 @@ export default function WorkflowRunsPage() {
                         {new Date(run.started_at).toLocaleString()}
                       </span>
                     </button>
+                    {/* `FlowRun.error` carries a failure reason OR, on a run
+                        that settled cleanly, a note the core attaches when the
+                        run had nothing to do (U7). Only the former is coral —
+                        a note next to a green "Completed" pill must read as a
+                        note, not as an error. */}
                     {run.error && (
-                      <p className="px-3 pb-2 text-[11px] text-coral-600 dark:text-coral-300">
+                      <p
+                        data-testid={`workflow-run-note-${run.id}`}
+                        className={`px-3 pb-2 text-[11px] ${
+                          isCleanTerminalRun(displayStatus)
+                            ? 'text-content-muted'
+                            : 'text-coral-600 dark:text-coral-300'
+                        }`}>
+                        {isCleanTerminalRun(displayStatus) ? `${t('flowRuns.note')}: ` : ''}
                         {run.error}
                       </p>
                     )}

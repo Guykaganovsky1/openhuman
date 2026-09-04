@@ -3677,6 +3677,7 @@ const messages: TranslationMap = {
   'notifications.flowGate.deny': 'Rifiuta',
   'notifications.flowGate.deciding': 'Lavorando…',
   'notifications.flowGate.error': 'Impossibile registrare la tua decisione: riprova.',
+  'flowRuns.note': 'Nota',
   'flowRuns.inspector.title': 'Dettagli esecuzione',
   'flowRuns.inspector.startedAt': 'Avviato',
   'flowRuns.inspector.finishedAt': 'Terminato',
