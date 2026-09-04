@@ -85,6 +85,20 @@ fn a_blocking_login_shell_is_abandoned_rather_than_waited_on() {
     );
 }
 
+/// How long the probe under test is allowed to wait before it gives up.
+///
+/// Deliberately longer than [`PID_DEADLINE`]. These two used to be equal, and
+/// that is a race the test loses under load: the shell has to start, source the
+/// container's profile scripts and reach its first `echo` before the probe's
+/// own budget expires and kills it. On a loaded CI runner, under llvm-cov
+/// instrumentation, it does not always win — and the test then fails with "the
+/// shell never recorded its pid", which is a statement about the runner rather
+/// than about the code. The probe must outlast the observation window.
+const PROBE_BUDGET: Duration = Duration::from_secs(6);
+
+/// How long the test waits for the shell to announce itself before giving up.
+const PID_DEADLINE: Duration = Duration::from_secs(4);
+
 /// The timeout must reap the shell, not merely stop waiting for it.
 ///
 /// The reason the child is spawned on the calling thread rather than handed to
@@ -112,11 +126,10 @@ fn a_timed_out_login_shell_is_killed_not_merely_abandoned() {
     // would be a race: a shell killed before it got to `echo` never writes one,
     // and the test would fail for a reason that is not the defect.
     let shell_path = shell.to_str().expect("utf8 path").to_string();
-    let probe = std::thread::spawn(move || {
-        super::login_shell_lookup_with(&shell_path, Duration::from_secs(2))
-    });
+    let probe =
+        std::thread::spawn(move || super::login_shell_lookup_with(&shell_path, PROBE_BUDGET));
 
-    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let deadline = std::time::Instant::now() + PID_DEADLINE;
     let pid = loop {
         if let Ok(raw) = std::fs::read_to_string(&pid_file) {
             if let Ok(pid) = raw.trim().parse::<i32>() {
@@ -136,15 +149,7 @@ fn a_timed_out_login_shell_is_killed_not_merely_abandoned() {
         "a blocking shell resolves nothing"
     );
 
-    // `kill -0` probes for existence without signalling. A reaped child is
-    // gone; a leaked one answers.
-    let alive = std::process::Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .expect("run kill -0")
-        .success();
-    assert!(!alive, "shell pid {pid} survived the timeout");
+    assert!(!is_running(pid), "shell pid {pid} survived the timeout");
 }
 
 /// K2: the flags are the whole reason this fallback finds anything.
@@ -218,11 +223,10 @@ fn a_timed_out_login_shell_takes_its_grandchildren_with_it() {
     // otherwise a shell killed early never writes one and the test fails for a
     // reason that is not the defect.
     let shell_path = shell.to_str().expect("utf8 path").to_string();
-    let probe = std::thread::spawn(move || {
-        super::login_shell_lookup_with(&shell_path, Duration::from_secs(2))
-    });
+    let probe =
+        std::thread::spawn(move || super::login_shell_lookup_with(&shell_path, PROBE_BUDGET));
 
-    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    let deadline = std::time::Instant::now() + PID_DEADLINE;
     let grandchild = loop {
         if let Ok(raw) = std::fs::read_to_string(&child_pid_file) {
             if let Ok(pid) = raw.trim().parse::<i32>() {
