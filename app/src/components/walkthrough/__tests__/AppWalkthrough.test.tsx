@@ -607,7 +607,7 @@ describe('createWalkthroughSteps', () => {
     { idx: 1, route: '/chat', target: 'home-cta' },
     { idx: 2, route: '/chat', target: 'chat-agent-panel' },
     { idx: 3, route: '/connections', target: 'skills-grid' },
-    { idx: 4, route: null, target: 'skills-channels' },
+    { idx: 4, route: '/connections', target: 'skills-channels' },
     { idx: 5, route: '/settings', target: 'settings-menu' },
     { idx: 6, route: '/chat', target: 'tab-chat' },
     { idx: 9, route: '/chat', target: 'chat-agent-panel' },
@@ -628,6 +628,25 @@ describe('createWalkthroughSteps', () => {
       document.body.removeChild(el);
     }
   });
+
+  // Joyride drops the whole tour when a `before` hook rejects — "Back" from
+  // the settings step used to do exactly that. A target that never mounts must
+  // therefore resolve the hook and let Joyride report target_not_found.
+  it.each([0, 1, 2, 3, 4, 5, 6, 9])(
+    'before hook for step %i resolves when its target never appears',
+    async idx => {
+      vi.useFakeTimers();
+      try {
+        const navigate = vi.fn();
+        const steps = createWalkthroughSteps(navigate);
+        const pending = (steps[idx].before as unknown as () => Promise<void>)();
+        await vi.advanceTimersByTimeAsync(3500);
+        await expect(pending).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  );
 
   it('targets only current walkthrough anchors', () => {
     const navigate = vi.fn();

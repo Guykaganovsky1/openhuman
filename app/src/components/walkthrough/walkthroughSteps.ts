@@ -45,6 +45,21 @@ export function waitForTarget(selector: string, timeout = 3000): Promise<void> {
 }
 
 /**
+ * `waitForTarget` for a `before` hook: a timeout is logged and swallowed.
+ *
+ * Joyride records a rejected `before` as a step failure and drops the tour —
+ * the tooltip vanishes with no Back/Next/Skip left on the page. A target that
+ * never mounts (a slow page, or "Back" landing on a state the step does not
+ * expect) should instead let Joyride report `target_not_found` and move on,
+ * which is what happens when the hook resolves.
+ */
+async function settleTarget(selector: string, timeout?: number): Promise<void> {
+  await waitForTarget(selector, timeout).catch(() => {
+    console.debug('[walkthrough] target not ready, continuing', selector);
+  });
+}
+
+/**
  * Factory that produces the post-onboarding walkthrough sequence.
  *
  * Steps that navigate to a different page receive a `before` async hook that
@@ -92,7 +107,7 @@ export function createWalkthroughSteps(
       skipBeacon: true,
       before: async () => {
         navigate('/chat');
-        await waitForTarget('home-cta');
+        await settleTarget('home-cta');
       },
     },
 
@@ -105,7 +120,7 @@ export function createWalkthroughSteps(
       skipBeacon: true,
       before: async () => {
         navigate('/chat');
-        await waitForTarget('chat-agent-panel');
+        await settleTarget('chat-agent-panel');
       },
     },
 
@@ -118,7 +133,7 @@ export function createWalkthroughSteps(
       skipBeacon: true,
       before: async () => {
         navigate('/connections');
-        await waitForTarget('skills-grid');
+        await settleTarget('skills-grid');
       },
     },
 
@@ -130,7 +145,10 @@ export function createWalkthroughSteps(
       placement: 'bottom',
       skipBeacon: true,
       before: async () => {
-        await waitForTarget('skills-channels');
+        // "Back" from the settings step lands here too, so this hook has to
+        // bring the page along instead of assuming step 4 already did.
+        navigate('/connections');
+        await settleTarget('skills-channels');
       },
     },
 
@@ -143,7 +161,7 @@ export function createWalkthroughSteps(
       skipBeacon: true,
       before: async () => {
         navigate('/settings');
-        await waitForTarget('settings-menu');
+        await settleTarget('settings-menu');
       },
     },
 
@@ -156,7 +174,7 @@ export function createWalkthroughSteps(
       skipBeacon: true,
       before: async () => {
         navigate('/chat');
-        await waitForTarget('tab-chat');
+        await settleTarget('tab-chat');
       },
     },
 
@@ -212,7 +230,7 @@ export function createWalkthroughSteps(
           console.debug('[walkthrough] step-9 before hook failed, falling back to /chat', err);
           navigate('/chat');
         }
-        await waitForTarget('chat-agent-panel');
+        await settleTarget('chat-agent-panel');
       },
     },
   ];
