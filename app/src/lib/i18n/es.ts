@@ -4141,6 +4141,8 @@ const messages: TranslationMap = {
     'Dile al asistente lo que quieres y deja que redacte el flujo de trabajo.',
   'flows.chooser.creating': 'Creando el flujo de trabajo…',
   'flows.chooser.createError': 'No se pudo crear el flujo de trabajo. Inténtalo de nuevo.',
+  'flows.chooser.createdButArmed':
+    'El flujo de trabajo se creó, pero no se pudo desactivar, así que está en marcha. Ábrelo y desactívalo.',
   'flows.templates.title': 'Empezar desde una plantilla',
   'flows.templates.subtitle': 'Elige un punto de partida y personalízalo en el editor.',
   'flows.templates.use': 'Usar plantilla',

@@ -4126,6 +4126,8 @@ const messages: TranslationMap = {
     'Powiedz asystentowi, czego chcesz, i pozwól mu naszkicować przepływ pracy.',
   'flows.chooser.creating': 'Tworzenie przepływu pracy…',
   'flows.chooser.createError': 'Nie udało się utworzyć przepływu pracy. Spróbuj ponownie.',
+  'flows.chooser.createdButArmed':
+    'Przepływ pracy został utworzony, ale nie udało się go wyłączyć, więc teraz działa. Otwórz go i wyłącz.',
   'flows.templates.title': 'Zacznij od szablonu',
   'flows.templates.subtitle': 'Wybierz punkt wyjścia i dostosuj go w edytorze.',
   'flows.templates.use': 'Użyj szablonu',

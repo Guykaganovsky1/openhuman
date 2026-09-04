@@ -3967,6 +3967,8 @@ const messages: TranslationMap = {
   'flows.chooser.describeDescription': 'أخبر المساعد بما تريد ودعه يصيغ سير العمل.',
   'flows.chooser.creating': 'جارٍ إنشاء سير العمل…',
   'flows.chooser.createError': 'تعذّر إنشاء سير العمل. يرجى المحاولة مرة أخرى.',
+  'flows.chooser.createdButArmed':
+    'تم إنشاء سير العمل لكن تعذّر إيقافه، لذا فهو يعمل الآن. افتحه وأوقفه.',
   'flows.templates.title': 'ابدأ من قالب',
   'flows.templates.subtitle': 'اختر نقطة بداية وخصّصها في المحرّر.',
   'flows.templates.use': 'استخدام القالب',

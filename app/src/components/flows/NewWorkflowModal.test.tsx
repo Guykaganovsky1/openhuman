@@ -81,17 +81,20 @@ describe('NewWorkflowModal', () => {
     expect(setFlowEnabled).not.toHaveBeenCalled();
   });
 
-  it('still opens the canvas when the force-disable call fails', async () => {
-    // The flow exists at that point. Reporting "could not create" would leave an
-    // armed orphan behind a message saying nothing was created.
+  it('warns instead of opening the canvas when the flow could not be turned off', async () => {
+    // The flow exists at that point, so this is not a failed create — but it is
+    // also not nothing: the workflow is armed and will run. Opening the canvas
+    // does not stop that, and nothing else on screen would say it happened.
     createFlow.mockResolvedValue({ id: 'flow-new', enabled: true });
     setFlowEnabled.mockRejectedValue(new Error('store unavailable'));
     renderModal();
 
     fireEvent.click(screen.getByTestId('new-workflow-scratch'));
 
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/flows/flow-new'));
-    expect(screen.queryByTestId('new-workflow-error')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('new-workflow-error')).toBeInTheDocument());
+    // One retry, then the warning — a core that refuses twice will refuse again.
+    expect(setFlowEnabled).toHaveBeenCalledTimes(2);
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('creating from a template calls flows_create with that template graph', async () => {

@@ -4068,6 +4068,8 @@ const messages: TranslationMap = {
     'सहायक को बताएँ कि आप क्या चाहते हैं और उसे वर्कफ़्लो का मसौदा बनाने दें।',
   'flows.chooser.creating': 'वर्कफ़्लो बनाया जा रहा है…',
   'flows.chooser.createError': 'वर्कफ़्लो नहीं बनाया जा सका। कृपया पुनः प्रयास करें।',
+  'flows.chooser.createdButArmed':
+    'वर्कफ़्लो बन गया लेकिन बंद नहीं किया जा सका, इसलिए वह अभी चल रहा है। उसे खोलकर बंद कर दें।',
   'flows.templates.title': 'टेम्पलेट से शुरू करें',
   'flows.templates.subtitle': 'एक प्रारंभिक बिंदु चुनें और संपादक में उसे अनुकूलित करें।',
   'flows.templates.use': 'टेम्पलेट उपयोग करें',

@@ -4136,6 +4136,8 @@ const messages: TranslationMap = {
     "Di' all'assistente cosa vuoi e lascia che rediga il flusso di lavoro.",
   'flows.chooser.creating': 'Creazione del flusso di lavoro…',
   'flows.chooser.createError': 'Impossibile creare il flusso di lavoro. Riprova.',
+  'flows.chooser.createdButArmed':
+    'Il flusso di lavoro è stato creato ma non è stato possibile disattivarlo, quindi ora è in esecuzione. Aprilo e disattivalo.',
   'flows.templates.title': 'Parti da un modello',
   'flows.templates.subtitle': "Scegli un punto di partenza e personalizzalo nell'editor.",
   'flows.templates.use': 'Usa modello',

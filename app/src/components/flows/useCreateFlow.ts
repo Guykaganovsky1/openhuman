@@ -30,10 +30,36 @@ interface UseCreateFlow {
   create: (key: string, name: string, graph: WorkflowGraph) => Promise<void>;
   /** The `key` of the create currently in flight, or `null`. */
   busyKey: string | null;
-  /** Localized create-failure message, or `null`. */
+  /**
+   * Localized failure message, or `null`. Covers both a failed create and a
+   * create whose "born disabled" repair did not stick — the second one names
+   * the armed workflow explicitly, because that is the state the user would
+   * otherwise not know to look for.
+   */
   error: string | null;
   /** Clear the error banner (e.g. when the user switches views). */
   clearError: () => void;
+}
+
+/**
+ * Turn a freshly created flow off, retrying once.
+ *
+ * One retry, not a loop: the failure this is written for is a transient RPC
+ * against a core that is up, and a core that is genuinely refusing the write
+ * will refuse the third attempt too — at which point the honest move is to
+ * tell the user, not to keep the button spinning.
+ */
+async function disableWithOneRetry(id: string): Promise<boolean> {
+  for (const attempt of [1, 2]) {
+    try {
+      await setFlowEnabled(id, false);
+      return true;
+    } catch (err) {
+      log('create: disable attempt %d failed id=%s err=%o', attempt, id, err);
+    }
+  }
+  log('create: could not disable the new flow id=%s — it remains ENABLED', id);
+  return false;
 }
 
 export function useCreateFlow(): UseCreateFlow {
@@ -65,20 +91,20 @@ export function useCreateFlow(): UseCreateFlow {
         // `flows_create` takes no `enabled` parameter, so this is the only way
         // to express it from a client.
         //
-        // A failed disable is NOT a failed create: the flow exists, and
-        // reporting `createError` here would leave an armed orphan behind a
-        // message saying nothing was created. Log it and still open the canvas,
-        // where the enable toggle shows the flow's real state.
+        // A failed disable is NOT a failed create — the flow exists, so
+        // reporting `createError` would leave an armed orphan behind a message
+        // saying nothing was created. It is not nothing either: an armed
+        // workflow with no nodes in it can fire before the user has looked at
+        // it, and navigating to the canvas does not stop that. So it gets one
+        // retry (the common failure is a transient RPC), and a persistent
+        // failure stops the flow of the UI and says plainly that the workflow
+        // is running — the one state the user cannot discover on their own.
         if (flow.enabled) {
           log('create: force-disabling the new flow id=%s (born enabled)', flow.id);
-          try {
-            await setFlowEnabled(flow.id, false);
-          } catch (disableErr) {
-            log(
-              'create: could not disable the new flow id=%s — it remains ENABLED err=%o',
-              flow.id,
-              disableErr
-            );
+          if (!(await disableWithOneRetry(flow.id))) {
+            setError(t('flows.chooser.createdButArmed'));
+            setBusyKey(null);
+            return;
           }
         }
         log('create: created id=%s — navigating to canvas', flow.id);

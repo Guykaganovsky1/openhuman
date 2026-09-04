@@ -4087,6 +4087,8 @@ const messages: TranslationMap = {
     'Beri tahu asisten apa yang Anda inginkan dan biarkan ia menyusun alur kerja.',
   'flows.chooser.creating': 'Membuat alur kerja…',
   'flows.chooser.createError': 'Tidak dapat membuat alur kerja. Silakan coba lagi.',
+  'flows.chooser.createdButArmed':
+    'Alur kerja berhasil dibuat tetapi tidak bisa dimatikan, jadi sekarang sedang berjalan. Buka lalu matikan.',
   'flows.templates.title': 'Mulai dari templat',
   'flows.templates.subtitle': 'Pilih titik awal dan sesuaikan di editor.',
   'flows.templates.use': 'Gunakan templat',

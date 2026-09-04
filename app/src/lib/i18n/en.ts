@@ -4719,6 +4719,8 @@ const en: TranslationMap = {
     'Tell the assistant what you want and let it draft the workflow.',
   'flows.chooser.creating': 'Creating workflow…',
   'flows.chooser.createError': 'Could not create the workflow. Please try again.',
+  'flows.chooser.createdButArmed':
+    'The workflow was created but could not be turned off, so it is running now. Open it and switch it off.',
   'flows.templates.title': 'Start from a template',
   'flows.templates.subtitle': 'Pick a starting point and customize it in the editor.',
   'flows.templates.use': 'Use template',

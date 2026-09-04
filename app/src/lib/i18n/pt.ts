@@ -4130,6 +4130,8 @@ const messages: TranslationMap = {
     'Diga ao assistente o que deseja e deixe-o esboçar o fluxo de trabalho.',
   'flows.chooser.creating': 'Criando o fluxo de trabalho…',
   'flows.chooser.createError': 'Não foi possível criar o fluxo de trabalho. Tente novamente.',
+  'flows.chooser.createdButArmed':
+    'O fluxo de trabalho foi criado, mas não foi possível desativá-lo, por isso está em execução. Abra-o e desative-o.',
   'flows.templates.title': 'Começar a partir de um modelo',
   'flows.templates.subtitle': 'Escolha um ponto de partida e personalize-o no editor.',
   'flows.templates.use': 'Usar modelo',

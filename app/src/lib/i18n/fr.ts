@@ -4168,6 +4168,8 @@ const messages: TranslationMap = {
     "Dites à l'assistant ce que vous voulez et laissez-le rédiger le workflow.",
   'flows.chooser.creating': 'Création du workflow…',
   'flows.chooser.createError': 'Impossible de créer le workflow. Veuillez réessayer.',
+  'flows.chooser.createdButArmed':
+    'Le workflow a été créé mais n’a pas pu être désactivé, il est donc en cours d’exécution. Ouvrez-le et désactivez-le.',
   'flows.templates.title': "Partir d'un modèle",
   'flows.templates.subtitle': "Choisissez un point de départ et personnalisez-le dans l'éditeur.",
   'flows.templates.use': 'Utiliser le modèle',

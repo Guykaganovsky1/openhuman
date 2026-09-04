@@ -4021,6 +4021,8 @@ const messages: TranslationMap = {
     '원하는 것을 어시스턴트에게 알려주면 워크플로 초안을 작성합니다.',
   'flows.chooser.creating': '워크플로 생성 중…',
   'flows.chooser.createError': '워크플로를 만들 수 없습니다. 다시 시도해 주세요.',
+  'flows.chooser.createdButArmed':
+    '워크플로가 만들어졌지만 끄지 못해 지금 실행 중입니다. 열어서 꺼 주세요.',
   'flows.templates.title': '템플릿에서 시작',
   'flows.templates.subtitle': '시작점을 선택하고 편집기에서 맞춤 설정하세요.',
   'flows.templates.use': '템플릿 사용',

@@ -3843,6 +3843,7 @@ const messages: TranslationMap = {
   'flows.chooser.describeDescription': '告诉助手你想要什么，让它起草工作流。',
   'flows.chooser.creating': '正在创建工作流…',
   'flows.chooser.createError': '无法创建工作流。请重试。',
+  'flows.chooser.createdButArmed': '工作流已创建，但未能关闭，因此正在运行。请打开并关闭它。',
   'flows.templates.title': '从模板开始',
   'flows.templates.subtitle': '选择一个起点并在编辑器中自定义。',
   'flows.templates.use': '使用模板',
