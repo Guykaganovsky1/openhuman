@@ -2584,6 +2584,8 @@ const messages: TranslationMap = {
   'memorySources.comingSoon': '출시 예정',
   'memorySources.composioListFailed': 'Composio 연결을 불러오지 못했습니다.',
   'memorySources.browse': '찾아보기…',
+  'memorySources.folderPathUnavailable':
+    '해당 폴더의 위치를 확인할 수 없습니다. 대신 전체 경로를 입력하세요.',
   'memorySources.folderPathPlaceholder': '/Users/you/notes',
   'memorySources.globPatternPlaceholder': '**/*.md',
   'memorySources.repoUrlPlaceholder': 'https://github.com/org/repo',
@@ -4873,6 +4875,9 @@ const messages: TranslationMap = {
   'settings.developerMenu.eventLog.title': '이벤트 로그',
   'settings.developerMenu.eventLog.desc':
     '모든 에이전트, 도구, 시스템 이벤트를 색상으로 구분해 실시간으로 표시합니다.',
+  'settings.developerMenu.eventLog.workspaceScope': '워크스페이스 범위',
+  'settings.developerMenu.eventLog.workspaceScopeActive': '현재 워크스페이스',
+  'settings.developerMenu.eventLog.workspaceScopeAll': '모든 워크스페이스',
   'settings.developerMenu.eventLog.allTypes': '모든 유형',
   'settings.developerMenu.eventLog.filterAgent': '필터...',
   'settings.developerMenu.eventLog.download': '다운로드',

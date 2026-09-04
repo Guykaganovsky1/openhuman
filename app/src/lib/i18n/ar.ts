@@ -2555,6 +2555,8 @@ const messages: TranslationMap = {
   'memorySources.comingSoon': 'قريباً',
   'memorySources.composioListFailed': 'فشل في تحميل الأتصالات Xqx0x.',
   'memorySources.browse': '(بروز)...',
+  'memorySources.folderPathUnavailable':
+    'تعذر تحديد موقع هذا المجلد. اكتب مساره الكامل بدلاً من ذلك.',
   'memorySources.folderPathPlaceholder': '/Users/you/notes',
   'memorySources.globPatternPlaceholder': '**',
   'memorySources.repoUrlPlaceholder': 'https://github.com/org/repo',
@@ -4816,6 +4818,9 @@ const messages: TranslationMap = {
   'settings.developerMenu.eventLog.title': 'الحدث',
   'settings.developerMenu.eventLog.desc':
     'تيار ملون مباشر لجميع العناصر والأدوات والأحداث النظامية',
+  'settings.developerMenu.eventLog.workspaceScope': 'نطاق مساحة العمل',
+  'settings.developerMenu.eventLog.workspaceScopeActive': 'مساحة العمل الحالية',
+  'settings.developerMenu.eventLog.workspaceScopeAll': 'كل مساحات العمل',
   'settings.developerMenu.eventLog.allTypes': 'جميع الأنواع',
   'settings.developerMenu.eventLog.filterAgent': '(فيلتر)',
   'settings.developerMenu.eventLog.download': 'تحميل',

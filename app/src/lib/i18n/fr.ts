@@ -2691,6 +2691,8 @@ const messages: TranslationMap = {
   'memorySources.comingSoon': 'Bientôt disponible',
   'memorySources.composioListFailed': 'Échec du chargement des connexions Composio.',
   'memorySources.browse': 'Parcourir…',
+  'memorySources.folderPathUnavailable':
+    'Impossible de déterminer où se trouve ce dossier. Saisissez plutôt son chemin complet.',
   'memorySources.folderPathPlaceholder': '/Users/you/notes',
   'memorySources.globPatternPlaceholder': '**/*.md',
   'memorySources.repoUrlPlaceholder': 'https://github.com/org/repo',
@@ -5044,6 +5046,9 @@ const messages: TranslationMap = {
   'settings.developerMenu.eventLog.title': 'Journal des événements',
   'settings.developerMenu.eventLog.desc':
     'Flux en direct codé par couleur de tous les événements des agents, outils et systèmes',
+  'settings.developerMenu.eventLog.workspaceScope': 'Portée de l’espace de travail',
+  'settings.developerMenu.eventLog.workspaceScopeActive': 'Cet espace de travail',
+  'settings.developerMenu.eventLog.workspaceScopeAll': 'Tous les espaces de travail',
   'settings.developerMenu.eventLog.allTypes': 'Tous les types',
   'settings.developerMenu.eventLog.filterAgent': 'Filtrer...',
   'settings.developerMenu.eventLog.download': 'Télécharger',

@@ -2636,6 +2636,8 @@ const messages: TranslationMap = {
   'memorySources.comingSoon': 'Скоро',
   'memorySources.composioListFailed': 'Не удалось загрузить соединения Composio.',
   'memorySources.browse': 'Просматривать…',
+  'memorySources.folderPathUnavailable':
+    'Не удалось определить, где находится эта папка. Введите полный путь к ней.',
   'memorySources.folderPathPlaceholder': '/Users/you/notes',
   'memorySources.globPatternPlaceholder': '**/*.md',
   'memorySources.repoUrlPlaceholder': 'https://github.com/org/repo',
@@ -4979,6 +4981,9 @@ const messages: TranslationMap = {
   'settings.developerMenu.eventLog.title': 'Журнал событий',
   'settings.developerMenu.eventLog.desc':
     'Живой поток с цветовой кодировкой обо всех событиях агента, инструмента и системы.',
+  'settings.developerMenu.eventLog.workspaceScope': 'Область рабочего пространства',
+  'settings.developerMenu.eventLog.workspaceScopeActive': 'Текущее рабочее пространство',
+  'settings.developerMenu.eventLog.workspaceScopeAll': 'Все рабочие пространства',
   'settings.developerMenu.eventLog.allTypes': 'Все типы',
   'settings.developerMenu.eventLog.filterAgent': 'Фильтр...',
   'settings.developerMenu.eventLog.download': 'Скачать',

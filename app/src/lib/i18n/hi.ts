@@ -2617,6 +2617,8 @@ const messages: TranslationMap = {
   'memorySources.comingSoon': 'जल्द आ रहा है',
   'memorySources.composioListFailed': 'Composio कनेक्शन लोड करने में विफल रहा।',
   'memorySources.browse': 'ब्राउज़ करें',
+  'memorySources.folderPathUnavailable':
+    'यह पता नहीं लगाया जा सका कि वह फ़ोल्डर कहाँ है। इसके बजाय उसका पूरा पथ टाइप करें।',
   'memorySources.folderPathPlaceholder': '/Users/you/notes',
   'memorySources.globPatternPlaceholder': '**',
   'memorySources.repoUrlPlaceholder': 'https://github.com/org/repo',
@@ -4931,6 +4933,9 @@ const messages: TranslationMap = {
   'settings.developerMenu.eventLog.title': 'घटना लॉग',
   'settings.developerMenu.eventLog.desc':
     'सभी एजेंट, टूल और सिस्टम इवेंट्स की लाइव कलर-कोडेड स्ट्रीम',
+  'settings.developerMenu.eventLog.workspaceScope': 'वर्कस्पेस का दायरा',
+  'settings.developerMenu.eventLog.workspaceScopeActive': 'यह वर्कस्पेस',
+  'settings.developerMenu.eventLog.workspaceScopeAll': 'सभी वर्कस्पेस',
   'settings.developerMenu.eventLog.allTypes': 'सभी प्रकार',
   'settings.developerMenu.eventLog.filterAgent': 'फ़िल्टर...',
   'settings.developerMenu.eventLog.download': 'डाउनलोड',

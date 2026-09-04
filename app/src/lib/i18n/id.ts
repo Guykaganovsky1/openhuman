@@ -2629,6 +2629,8 @@ const messages: TranslationMap = {
   'memorySources.comingSoon': 'Segera hadir',
   'memorySources.composioListFailed': 'Gagal memuat koneksi Composio.',
   'memorySources.browse': 'Jelajahi...',
+  'memorySources.folderPathUnavailable':
+    'Tidak dapat menentukan lokasi folder tersebut. Ketik jalur lengkapnya sebagai gantinya.',
   'memorySources.folderPathPlaceholder': '/Users/you/notes',
   'memorySources.globPatternPlaceholder': '* * /*.md',
   'memorySources.repoUrlPlaceholder': 'https://github.com/org/repo',
@@ -4957,6 +4959,9 @@ const messages: TranslationMap = {
   'settings.developerMenu.eventLog.title': 'Log Peristiwa',
   'settings.developerMenu.eventLog.desc':
     'Siaran warna langsung dari semua agen, alat, dan peristiwa sistem',
+  'settings.developerMenu.eventLog.workspaceScope': 'Cakupan ruang kerja',
+  'settings.developerMenu.eventLog.workspaceScopeActive': 'Ruang kerja ini',
+  'settings.developerMenu.eventLog.workspaceScopeAll': 'Semua ruang kerja',
   'settings.developerMenu.eventLog.allTypes': 'Semua jenis',
   'settings.developerMenu.eventLog.filterAgent': 'Filter...',
   'settings.developerMenu.eventLog.download': 'Unduh',
