@@ -66,7 +66,10 @@ const mockIsTauri = vi.mocked(isTauri);
 async function renderLoaded(overrides: Partial<SandboxSettings> = {}) {
   mockGet.mockResolvedValue({ result: sandboxSettings(overrides), logs: [] });
   renderWithProviders(<SandboxSettingsPanel />);
-  await waitFor(() => expect(mockGet).toHaveBeenCalled());
+  // Waiting on `mockGet` alone only proves the fetch was issued — the panel is
+  // still rendering "Loading…" at that point, so the field queries below throw
+  // under load. Wait for a field the loaded state owns instead.
+  await waitFor(() => expect(screen.getByDisplayValue('alpine:3.20')).toBeInTheDocument());
 }
 
 /**

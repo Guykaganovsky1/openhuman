@@ -1,4 +1,7 @@
 use super::*;
+use crate::openhuman::skills::ops_resource::{
+    profile_local_skill_ids, read_workflow_resource_with_profile,
+};
 
 /// Write a minimal `WORKFLOW.md` bundle under `root/slug/`.
 fn seed_bundle(root: &Path, slug: &str) {

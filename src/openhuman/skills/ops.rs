@@ -23,6 +23,7 @@
 //! |---|---|
 //! | [`super::ops_types`] | Core types, constants, and frontmatter helpers |
 //! | [`super::ops_discover`] | Scanning root directories, scope resolution, collision handling |
+//! | [`super::ops_resource`] | Resolving a skill id and serving a bundled resource file |
 //! | [`super::ops_parse`] | SKILL.md parsing, resource inventory, skill-resource reading |
 //! | [`super::ops_create`] | Scaffolding new SKILL.md-based skills on disk |
 //! | [`super::ops_install`] | URL-based skill installation over HTTPS |
@@ -33,7 +34,6 @@ pub use super::ops_create::{create_workflow, CreateWorkflowParams, WorkflowCreat
 pub use super::ops_discover::{
     discover_automations, discover_workflows, discover_workflows_with_profile, init_workflows_dir,
     is_workspace_trusted, load_workflow_metadata, load_workflow_metadata_for_profile,
-    profile_local_skill_ids, read_workflow_resource, read_workflow_resource_with_profile,
 };
 pub use super::ops_install::{
     install_workflow_from_url, uninstall_workflow, validate_install_url, validate_resolved_host,
@@ -42,6 +42,9 @@ pub use super::ops_install::{
     MAX_INSTALL_URL_LEN, MAX_WORKFLOW_MD_BYTES,
 };
 pub use super::ops_parse::{inventory_resources, parse_workflow_md, parse_workflow_md_str};
+pub use super::ops_resource::{
+    profile_local_skill_ids, read_workflow_resource, read_workflow_resource_with_profile,
+};
 pub use super::ops_types::{
     Workflow, WorkflowFrontmatter, WorkflowScope, MAX_WORKFLOW_RESOURCE_BYTES,
 };

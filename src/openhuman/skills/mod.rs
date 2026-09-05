@@ -60,6 +60,8 @@ pub mod ops_install;
 #[cfg(feature = "skills")]
 pub mod ops_parse;
 #[cfg(feature = "skills")]
+pub mod ops_resource;
+#[cfg(feature = "skills")]
 pub mod preflight;
 #[cfg(feature = "skills")]
 pub mod registry;
