@@ -532,6 +532,11 @@ describe('Conversations — smoke render (#1123 welcome-lock removal)', () => {
     });
 
     const betaRow = await screen.findByTestId('thread-row-t-2');
+    // `fireEvent.keyDown` dispatches straight at the node, so it would keep
+    // passing on a row no keyboard user can reach. Pin the two attributes that
+    // make the Enter below reachable in the first place.
+    expect(betaRow).toHaveAttribute('role', 'button');
+    expect(betaRow).toHaveAttribute('tabindex', '0');
     await act(async () => {
       fireEvent.keyDown(betaRow, { key: 'Enter' });
     });

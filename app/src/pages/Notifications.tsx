@@ -210,7 +210,13 @@ const Notifications = () => {
         <PageSectionHeader
           className="mx-auto max-w-3xl"
           title={t('alerts.title')}
-          description={unread > 0 ? `${unread} ${t('alerts.unread')}` : t('alerts.header.desc')}
+          // Both buckets, because "Mark all read" acts on both: counting only
+          // the local ones showed the all-clear text next to an enabled button.
+          description={
+            unread + integrationUnread > 0
+              ? `${unread + integrationUnread} ${t('alerts.unread')}`
+              : t('alerts.header.desc')
+          }
           action={
             <div className="flex items-center gap-2">
               <Button

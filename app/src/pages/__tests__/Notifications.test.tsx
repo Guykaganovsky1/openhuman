@@ -312,6 +312,15 @@ describe('Notifications page header actions', () => {
     expect(store.getState().notifications.items).toHaveLength(0);
   });
 
+  // The header and the button must agree on what "unread" means. Counting only
+  // the local feed put the all-clear text next to an enabled Mark all read.
+  it('counts both feeds in the header, as the mark-all-read button does', () => {
+    renderPage([], [makeIntegrationItem('i-1'), makeIntegrationItem('i-2')]);
+
+    expect(screen.getByTestId('alerts-mark-all-read')).not.toBeDisabled();
+    expect(screen.getByText(/^2 /)).toBeInTheDocument();
+  });
+
   it('disables both actions when neither feed has anything to act on', () => {
     renderPage([], [makeIntegrationItem('i-1', 'dismissed')]);
 

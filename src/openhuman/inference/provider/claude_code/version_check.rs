@@ -164,6 +164,10 @@ fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
         let _ = tx.send(out);
     });
 
+    // One deadline for the whole probe. EOF on stdout is not exit: a profile
+    // that closes stdout and then sleeps sends `out` immediately and would have
+    // left the `wait()` below unbounded, blocking startup on the shell.
+    let deadline = std::time::Instant::now() + budget;
     let stdout = match rx.recv_timeout(budget) {
         Ok(out) => out,
         Err(_) => {
@@ -178,9 +182,19 @@ fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
         }
     };
 
-    match child.wait() {
-        Ok(status) if status.success() => {}
-        _ => return None,
+    match wait_until(&mut child, deadline) {
+        Some(status) if status.success() => {}
+        Some(_) => return None,
+        None => {
+            log::warn!(
+                "[claude-code][version] login shell answered but did not exit within {}s; \
+                 killing the probe",
+                budget.as_secs()
+            );
+            kill_probe_tree(&mut child);
+            let _ = child.wait();
+            return None;
+        }
     }
     // An interactive login shell runs the user's rc files, and one that prints
     // a banner puts that text on the same stdout as `command -v`. Only the last
@@ -199,6 +213,28 @@ fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
         );
         path
     })
+}
+
+/// Wait for the probe to exit, giving up at `deadline`.
+///
+/// `std::process::Child` has no timed wait, so this polls. The interval is the
+/// usual trade: short enough that the common case (already exited) costs one
+/// poll, long enough not to spin.
+fn wait_until(
+    child: &mut std::process::Child,
+    deadline: std::time::Instant,
+) -> Option<std::process::ExitStatus> {
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Some(status),
+            Ok(None) => {}
+            Err(_) => return None,
+        }
+        if std::time::Instant::now() >= deadline {
+            return None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
 }
 
 /// Kill the timed-out probe and everything its rc files started.

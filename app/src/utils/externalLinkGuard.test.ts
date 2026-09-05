@@ -36,6 +36,14 @@ describe('classifyLinkNavigation', () => {
     expect(classifyLinkNavigation(`${APP_ORIGIN}/settings`, APP_ORIGIN)).toBe('block');
   });
 
+  it('blocks a same-origin hash URL that decorates a different document', () => {
+    // `/other-page#/chat` is same-origin and carries a hash, but it still loads
+    // `/other-page`. Only a hash on the document already open is a route.
+    expect(classifyLinkNavigation('/other-page#/chat', APP_ORIGIN)).toBe('block');
+    expect(classifyLinkNavigation(`${APP_ORIGIN}/other#/chat`, APP_ORIGIN)).toBe('block');
+    expect(classifyLinkNavigation('/app.html#/chat', APP_ORIGIN, '/app.html')).toBe('ignore');
+  });
+
   it('leaves hash routes and foreign schemes alone, and sends remote pages out', () => {
     expect(classifyLinkNavigation('#/chat', APP_ORIGIN)).toBe('ignore');
     expect(classifyLinkNavigation(`${APP_ORIGIN}/#/chat`, APP_ORIGIN)).toBe('ignore');

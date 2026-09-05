@@ -195,9 +195,51 @@ fn the_login_shell_is_asked_as_an_interactive_login_shell() {
     );
 }
 
+/// EOF on stdout is not the shell exiting.
+///
+/// A profile that closes stdout and then sleeps sends its output immediately,
+/// so the read returns at once and the `wait()` that follows had no deadline —
+/// `from_env` blocked for as long as the shell chose to sleep. The bound now
+/// covers both, so this returns well inside the sleep.
+#[cfg(unix)]
+#[test]
+fn a_shell_that_closes_stdout_and_sleeps_does_not_hold_the_probe() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let resolved = dir.path().join("claude");
+    std::fs::write(&resolved, "#!/bin/sh\n").expect("write claude");
+
+    let shell = dir.path().join("lingering-shell");
+    std::fs::write(
+        &shell,
+        format!(
+            "#!/bin/sh\necho {}\nexec 1>&-\nsleep 30\n",
+            resolved.display()
+        ),
+    )
+    .expect("write shell");
+    std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o755)).expect("chmod shell");
+
+    let started = std::time::Instant::now();
+    let found =
+        super::login_shell_lookup_with(shell.to_str().expect("utf8 path"), Duration::from_secs(2));
+    let elapsed = started.elapsed();
+
+    assert!(
+        elapsed < Duration::from_secs(10),
+        "the probe must be bounded by its own budget, not by the shell's sleep (took {elapsed:?})"
+    );
+    // The shell never exits within the budget, so there is no successful status
+    // to trust — the probe reports nothing rather than a path it cannot vouch
+    // for. `found` is asserted only to pin that it returns at all.
+    assert!(found.is_none() || found.as_deref() == Some(resolved.as_path()));
+}
+
 /// An rc file that greets the user puts its banner on the same stdout as
 /// `command -v`. Reading all of it as one path resolves nothing, and the
 /// installed CLI is reported absent — a regression `-lic` made reachable.
+#[cfg(unix)]
 #[test]
 fn a_banner_printed_by_the_rc_files_does_not_hide_the_cli() {
     use std::os::unix::fs::PermissionsExt;

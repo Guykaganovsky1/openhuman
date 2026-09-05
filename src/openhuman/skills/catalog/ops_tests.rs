@@ -489,6 +489,10 @@ async fn an_unfiltered_browse_page_still_serves_a_stale_cache() {
     std::env::set_var(CACHE_DIR_ENV, tmp.path());
     write_cache_at(tmp.path(), vec![sample_entry()], 1); // stale: 1 entry
 
+    // Pin REFRESHING: the stale hit spawns a background revalidation that
+    // ignores the injected fetcher, and a detached task outliving the env
+    // override below would reach the real registry and write the default cache.
+    REFRESHING.store(true, AtomicOrdering::SeqCst);
     let called = Arc::new(AtomicBool::new(false));
     let called_in = called.clone();
     let page = browse_catalog_page_with(false, None, None, 0, None, move || async move {
@@ -504,6 +508,7 @@ async fn an_unfiltered_browse_page_still_serves_a_stale_cache() {
     );
     assert_eq!(page.total, 1, "the stale catalog is what gets paged");
 
+    REFRESHING.store(false, AtomicOrdering::SeqCst);
     store::clear_cache();
     std::env::remove_var(CACHE_DIR_ENV);
 }

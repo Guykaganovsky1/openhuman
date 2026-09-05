@@ -294,19 +294,83 @@ fn discover_filtered(
     out
 }
 
+/// Env var naming extra user-scope skill roots, `:`-separated (`;` on Windows),
+/// each an absolute directory holding one bundle per subdirectory.
+///
+/// It exists because a user's real skill library is often neither of the two
+/// built-in roots: an agent host (Claude Code, OpenClaw, Hermes) keeps the
+/// bundles in its own tree and links them into `~/.claude/skills`, and
+/// discovery deliberately refuses symlinked bundle directories
+/// ([`scan_root_inner`]), so pointing at the link farm loads nothing. Point
+/// this at the directory holding the *real* folders instead.
+///
+/// Roots are scanned in order, before the built-in ones, at `User` scope — so
+/// a same-named bundle in `~/.openhuman/skills` still wins, and a bundle
+/// present in two extra roots is de-duplicated by [`absorb`] like any other
+/// collision rather than listed twice.
+pub(crate) const EXTRA_SKILL_ROOTS_ENV: &str = "OPENHUMAN_SKILL_ROOTS";
+
+/// Parse [`EXTRA_SKILL_ROOTS_ENV`] into scan roots.
+///
+/// Relative and empty entries are dropped: this list is consulted for every
+/// session, and a relative root would resolve against whatever cwd the process
+/// happens to have, which is not a property a skill catalog should depend on.
+fn extra_user_roots() -> Vec<(PathBuf, RootKind)> {
+    let Ok(raw) = std::env::var(EXTRA_SKILL_ROOTS_ENV) else {
+        return Vec::new();
+    };
+    parse_extra_roots(&raw)
+}
+
+/// Pure half of [`extra_user_roots`], so the parsing rules are testable without
+/// mutating process-global environment state from a parallel test run.
+pub(crate) fn parse_extra_roots(raw: &str) -> Vec<(PathBuf, RootKind)> {
+    let separator = if cfg!(windows) { ';' } else { ':' };
+    let roots: Vec<(PathBuf, RootKind)> = raw
+        .split(separator)
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty())
+        .map(PathBuf::from)
+        .filter(|path| {
+            if path.is_absolute() {
+                true
+            } else {
+                tracing::warn!(
+                    root = %path.display(),
+                    env = EXTRA_SKILL_ROOTS_ENV,
+                    "[workflows] ignoring relative extra skill root"
+                );
+                false
+            }
+        })
+        .map(|path| (path, RootKind::Skill))
+        .collect();
+    tracing::debug!(
+        count = roots.len(),
+        env = EXTRA_SKILL_ROOTS_ENV,
+        "[workflows] extra user skill roots configured"
+    );
+    roots
+}
+
 fn user_roots(home: &Path) -> Vec<(PathBuf, RootKind)> {
     // `workflows/` is the current layout (create writes here); the `skills/`
     // roots are still scanned for back-compat with installs created before the
     // skills→workflows rename. Order matters: `workflows/` is scanned last so a
-    // same-named entry there wins over a legacy `skills/` one.
-    vec![
+    // same-named entry there wins over a legacy `skills/` one, and the
+    // env-configured roots are scanned first so a bundle the user also keeps
+    // under `~/.openhuman/skills` wins over the external copy.
+    let mut roots = extra_user_roots();
+    roots.extend([
+        (home.join(".claude").join("skills"), RootKind::Skill),
         (home.join(".openhuman").join("skills"), RootKind::Skill),
         (home.join(".agents").join("skills"), RootKind::Skill),
         (
             home.join(".openhuman").join("workflows"),
             RootKind::Workflow,
         ),
-    ]
+    ]);
+    roots
 }
 
 fn project_roots(workspace: &Path) -> Vec<(PathBuf, RootKind)> {

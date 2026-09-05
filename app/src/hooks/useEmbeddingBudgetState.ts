@@ -143,9 +143,19 @@ function loadEmbeddingsSettingsShared(): Promise<EmbeddingsSettings> {
   return pending;
 }
 
-/** Test seam — drops any promise still recorded as in flight. */
-export function __resetEmbeddingSettingsShareForTests(): void {
+/**
+ * Forget any read still in flight.
+ *
+ * The shared promise is only correct while the session that started it is the
+ * session that will read the answer, so a sign-out has to drop it.
+ */
+function dropSharedEmbeddingSettings(): void {
   inFlightSettings = null;
+}
+
+/** Test seam — same thing, named for the tests that reach for it. */
+export function __resetEmbeddingSettingsShareForTests(): void {
+  dropSharedEmbeddingSettings();
 }
 
 export function useEmbeddingBudgetState(): EmbeddingBudgetState {
@@ -183,6 +193,10 @@ export function useEmbeddingBudgetState(): EmbeddingBudgetState {
     // session anyway.
     if (!isAuthenticated) {
       console.debug(`${LOG} skip: not authenticated — cleared provider + fallback budget`);
+      // A read that was in flight across the sign-out belongs to the previous
+      // user, and the shared promise would hand its answer to the next session
+      // — the exact cross-user carry-over the lines below exist to prevent.
+      dropSharedEmbeddingSettings();
       setProvider(null);
       setFallbackUsage(null);
       setProviderLoading(false);

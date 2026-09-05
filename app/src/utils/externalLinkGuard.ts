@@ -17,7 +17,8 @@ export type LinkNavigation = 'ignore' | 'block' | 'external';
  * What a click on `href` would do to the main webview.
  *
  * - `external` — a remote page. Hand it to the OS browser.
- * - `block` — the app's own origin but NOT a hash route (`/settings`, say).
+ * - `block` — the app's own origin but NOT a hash route (`/settings`, or
+ *   `/other-page#/chat`, whose hash decorates a different document).
  *   This app routes on the hash, so such a URL is a real page load: the webview
  *   leaves the running app and there is no chrome to come back with. It is not
  *   a remote page either, so handing it to the OS browser would be wrong —
@@ -25,7 +26,11 @@ export type LinkNavigation = 'ignore' | 'block' | 'external';
  * - `ignore` — an in-page anchor, a hash route, or a non-http(s) scheme
  *   (`mailto:`, `data:`, `openhuman://`). None of these strand the user.
  */
-export function classifyLinkNavigation(href: string, appOrigin: string): LinkNavigation {
+export function classifyLinkNavigation(
+  href: string,
+  appOrigin: string,
+  appPathname = '/'
+): LinkNavigation {
   const trimmed = href.trim();
   if (!trimmed || trimmed.startsWith('#')) return 'ignore';
   let url: URL;
@@ -36,7 +41,10 @@ export function classifyLinkNavigation(href: string, appOrigin: string): LinkNav
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return 'ignore';
   if (url.origin !== appOrigin) return 'external';
-  return url.hash ? 'ignore' : 'block';
+  // A hash alone does not make a hash route: `/other-page#/chat` carries one and
+  // still loads `/other-page`. Only a hash on the document already loaded is an
+  // in-app route.
+  return url.hash && url.pathname === appPathname ? 'ignore' : 'block';
 }
 
 /** True when `href` would take the webview to a remote page. */
@@ -75,7 +83,7 @@ export function installExternalLinkGuard(doc: Document = document): () => void {
     if (!anchor) return;
 
     const href = anchor.getAttribute('href') ?? '';
-    const kind = classifyLinkNavigation(href, doc.location.origin);
+    const kind = classifyLinkNavigation(href, doc.location.origin, doc.location.pathname);
     if (kind === 'ignore') return;
 
     event.preventDefault();

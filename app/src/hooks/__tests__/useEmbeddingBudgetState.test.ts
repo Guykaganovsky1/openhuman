@@ -220,6 +220,40 @@ describe('useEmbeddingBudgetState session + managed-embeddings gaps', () => {
     });
   });
 
+  // The same carry-over, through the shared promise instead of through state:
+  // a read still in flight at sign-out belongs to the previous user, and
+  // handing its answer to the next session is exactly what the clear above
+  // exists to prevent.
+  it('does not hand a read that was in flight at sign-out to the next session', async () => {
+    __resetEmbeddingSettingsShareForTests();
+
+    let settlePrevious: (value: { provider: string }) => void = () => {};
+    mockLoadEmbeddingsSettings.mockReturnValueOnce(
+      new Promise<{ provider: string }>(resolve => {
+        settlePrevious = resolve;
+      })
+    );
+
+    const { result, rerender } = renderHook(() => useEmbeddingBudgetState());
+    await vi.waitFor(() => expect(mockLoadEmbeddingsSettings).toHaveBeenCalledTimes(1));
+
+    // Sign out while that read is still pending.
+    mockUseCoreState.mockReturnValue({ snapshot: { auth: { isAuthenticated: false } } });
+    rerender();
+    await vi.waitFor(() => expect(result.current.isManagedEmbeddings).toBe(false));
+
+    // The previous user's answer lands late, and says "managed".
+    mockLoadEmbeddingsSettings.mockResolvedValue({ provider: 'ollama' });
+    settlePrevious({ provider: 'openhuman' });
+
+    // Next session: a fresh read, not the stale promise.
+    mockUseCoreState.mockReturnValue({ snapshot: { auth: { isAuthenticated: true } } });
+    rerender();
+
+    await vi.waitFor(() => expect(mockLoadEmbeddingsSettings).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(result.current.isManagedEmbeddings).toBe(false));
+  });
+
   // Codex: chat + background workloads routed off OpenHuman (so useUsageState
   // reports no payload) while embeddings stay on the managed budget. The
   // warning must still reach this user via a direct budget read.

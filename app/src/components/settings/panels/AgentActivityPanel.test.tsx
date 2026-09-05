@@ -149,12 +149,22 @@ describe('<AgentActivityPanel />', () => {
     });
     expect(document.activeElement).toHaveAttribute('data-testid', 'activity-level-off');
 
-    // ArrowUp from the first wraps to the last, as a radio group does.
+    // End goes to the last option.
     callCoreRpc.mockClear();
-    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' });
+    fireEvent.keyDown(document.activeElement!, { key: 'End' });
     await waitFor(() => {
       expect(callCoreRpc).toHaveBeenCalledWith(
         expect.objectContaining({ params: { level: 'always_on' } })
+      );
+    });
+    expect(document.activeElement).toHaveAttribute('data-testid', 'activity-level-alwaysOn');
+
+    // ArrowDown from the last wraps to the first, as a radio group does.
+    callCoreRpc.mockClear();
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' });
+    await waitFor(() => {
+      expect(callCoreRpc).toHaveBeenCalledWith(
+        expect.objectContaining({ params: { level: 'off' } })
       );
     });
   });
