@@ -611,7 +611,9 @@ export default function Skills() {
   // over the MCP or Apps grid with no relationship to what was underneath.
   // Keyed on `activeTab` rather than folded into `handleTabChange` so browser
   // back/forward — which changes the tab through the URL, never through that
-  // callback — closes it too.
+  // callback — closes it too. Rendering it conditionally on the tab instead
+  // would only hide it: the sheet would come back on returning to Messaging,
+  // which is not what dismissing it means.
   useEffect(() => {
     setChannelModalDef(null);
   }, [activeTab]);

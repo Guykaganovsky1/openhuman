@@ -13,6 +13,10 @@ vi.mock('../../services/api/flowsApi', () => ({ createFlow: vi.fn(), setFlowEnab
 
 const GRAPH = { nodes: [], edges: [] } as unknown as WorkflowGraph;
 
+/** What the RPC answers with: the persisted flow, whose `enabled` is the truth. */
+const disabled = { id: 'f1', enabled: false } as never;
+const stillArmed = { id: 'f1', enabled: true } as never;
+
 describe('useCreateFlow', () => {
   beforeEach(() => {
     navigate.mockReset();
@@ -22,7 +26,7 @@ describe('useCreateFlow', () => {
   });
 
   it('opens the canvas once the new flow has been turned off', async () => {
-    vi.mocked(setFlowEnabled).mockResolvedValue(undefined as never);
+    vi.mocked(setFlowEnabled).mockResolvedValue(disabled);
     const { result } = renderHook(() => useCreateFlow());
 
     await act(async () => {
@@ -39,7 +43,7 @@ describe('useCreateFlow', () => {
   it('retries a failed disable once before giving up', async () => {
     vi.mocked(setFlowEnabled)
       .mockRejectedValueOnce(new Error('rpc blip'))
-      .mockResolvedValueOnce(undefined as never);
+      .mockResolvedValueOnce(disabled);
     const { result } = renderHook(() => useCreateFlow());
 
     await act(async () => {
@@ -67,6 +71,21 @@ describe('useCreateFlow', () => {
     // The affordance is released, so the user can retry rather than sit on a
     // spinner next to a workflow that is running.
     expect(result.current.busyKey).toBeNull();
+  });
+
+  // The failure a resolved promise hides: the call succeeded, the write did
+  // not. Only the returned flow's `enabled` says which happened.
+  it('treats a response that is still enabled as a failed disable', async () => {
+    vi.mocked(setFlowEnabled).mockResolvedValue(stillArmed);
+    const { result } = renderHook(() => useCreateFlow());
+
+    await act(async () => {
+      await result.current.create('blank', 'New', GRAPH);
+    });
+
+    expect(setFlowEnabled).toHaveBeenCalledTimes(2);
+    expect(navigate).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.error).toBe('flows.chooser.createdButArmed'));
   });
 
   it('reports a failed create as a failed create', async () => {

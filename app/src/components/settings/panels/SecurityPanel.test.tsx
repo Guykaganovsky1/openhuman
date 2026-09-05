@@ -63,6 +63,9 @@ describe('SecurityPanel storage-mode label', () => {
   it('falls back to the raw value for a mode the map does not know', () => {
     renderPanel('some_future_mode');
 
-    expect(screen.getByText('keyring.settings.mode.some_future_mode')).toBeInTheDocument();
+    // The raw mode itself — not `keyring.settings.mode.some_future_mode`, which
+    // is an i18n key no locale defines and reads to the user as a broken row.
+    expect(screen.getByText('some_future_mode')).toBeInTheDocument();
+    expect(screen.queryByText(/keyring\.settings\.mode\./)).toBeNull();
   });
 });

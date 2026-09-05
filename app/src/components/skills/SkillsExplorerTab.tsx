@@ -529,8 +529,16 @@ export default function SkillsExplorerTab({ onToast }: SkillsExplorerTabProps) {
       // current one. (The pre-paging code replaced the list, so a late reply
       // was merely stale, never mixed.)
       const requestId = ++catalogRequestRef.current;
-      if (append) setCatalogLoadingMore(true);
-      else setCatalogLoading(true);
+      if (append) {
+        setCatalogLoadingMore(true);
+      } else {
+        // This request supersedes anything in flight, so a pending append's
+        // `finally` will bail on the request-id check and never clear its own
+        // flag — leaving "Show more" disabled after a refresh. Clear it here,
+        // where the supersession actually happens.
+        setCatalogLoadingMore(false);
+        setCatalogLoading(true);
+      }
       setCatalogError(null);
       try {
         const page = await skillRegistryApi.browse({

@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { installExternalLinkGuard, isExternalNavigation } from './externalLinkGuard';
+import {
+  classifyLinkNavigation,
+  installExternalLinkGuard,
+  isExternalNavigation,
+} from './externalLinkGuard';
 import { openUrl } from './openUrl';
 
 vi.mock('./openUrl', () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
@@ -21,6 +25,22 @@ describe('isExternalNavigation', () => {
     expect(isExternalNavigation('mailto:someone@example.com', APP_ORIGIN)).toBe(false);
     expect(isExternalNavigation('data:text/html,<p>hi</p>', APP_ORIGIN)).toBe(false);
     expect(isExternalNavigation('openhuman://thread/1', APP_ORIGIN)).toBe(false);
+  });
+});
+
+describe('classifyLinkNavigation', () => {
+  it('blocks a same-origin path that is not a hash route', () => {
+    // The app routes on the hash, so `/settings` is a page load that leaves the
+    // running app behind — not remote, so there is nothing to open elsewhere.
+    expect(classifyLinkNavigation('/settings', APP_ORIGIN)).toBe('block');
+    expect(classifyLinkNavigation(`${APP_ORIGIN}/settings`, APP_ORIGIN)).toBe('block');
+  });
+
+  it('leaves hash routes and foreign schemes alone, and sends remote pages out', () => {
+    expect(classifyLinkNavigation('#/chat', APP_ORIGIN)).toBe('ignore');
+    expect(classifyLinkNavigation(`${APP_ORIGIN}/#/chat`, APP_ORIGIN)).toBe('ignore');
+    expect(classifyLinkNavigation('mailto:a@b.c', APP_ORIGIN)).toBe('ignore');
+    expect(classifyLinkNavigation('https://example.com', APP_ORIGIN)).toBe('external');
   });
 });
 
@@ -49,6 +69,15 @@ describe('installExternalLinkGuard', () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(openUrl).toHaveBeenCalledWith('https://example.com/site');
+  });
+
+  it('stops a same-origin page load without sending it to the OS browser', () => {
+    teardown = installExternalLinkGuard();
+
+    const event = clickAnchor('<a href="/settings">settings</a>');
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(openUrl).not.toHaveBeenCalled();
   });
 
   it('lets in-app routes through untouched', () => {

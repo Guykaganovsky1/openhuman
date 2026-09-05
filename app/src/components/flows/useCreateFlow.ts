@@ -52,8 +52,14 @@ interface UseCreateFlow {
 async function disableWithOneRetry(id: string): Promise<boolean> {
   for (const attempt of [1, 2]) {
     try {
-      await setFlowEnabled(id, false);
-      return true;
+      // A fulfilled request is not a disabled flow: `setFlowEnabled` answers
+      // with the persisted `Flow`, so the postcondition is what came back, not
+      // that the call returned. A response still reading `enabled: true` means
+      // the write did not take — retry it rather than navigating to an armed
+      // workflow.
+      const updated = await setFlowEnabled(id, false);
+      if (updated.enabled === false) return true;
+      log('create: disable attempt %d returned an ENABLED flow id=%s', attempt, id);
     } catch (err) {
       log('create: disable attempt %d failed id=%s err=%o', attempt, id, err);
     }

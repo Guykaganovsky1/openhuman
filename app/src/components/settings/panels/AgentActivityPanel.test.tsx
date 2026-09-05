@@ -118,6 +118,47 @@ describe('<AgentActivityPanel />', () => {
     expect(document.activeElement).toHaveAttribute('role', 'radio');
   });
 
+  // A radiogroup is one tab stop, and the arrows move within it. Without this
+  // the five cards were five tab stops and the arrow keys did nothing — the
+  // role announced a widget the keyboard did not implement.
+  it('is a single tab stop whose arrows move and select', async () => {
+    render(<AgentActivityPanel />);
+    await waitFor(() => expect(levelButtons()).toHaveLength(5));
+
+    // Loaded level is 2 ("moderate", index 2): it is the only tabbable option.
+    const tabbable = levelButtons().filter(b => b.getAttribute('tabindex') === '0');
+    expect(tabbable).toHaveLength(1);
+    expect(tabbable[0]).toHaveAttribute('data-testid', 'activity-level-moderate');
+
+    // ArrowDown selects the next option and takes focus with it.
+    fireEvent.keyDown(tabbable[0], { key: 'ArrowDown' });
+    await waitFor(() => {
+      expect(callCoreRpc).toHaveBeenCalledWith(
+        expect.objectContaining({ params: { level: 'active' } })
+      );
+    });
+    expect(document.activeElement).toHaveAttribute('data-testid', 'activity-level-active');
+
+    // Home goes to the first, End to the last — both wrap the whole group.
+    callCoreRpc.mockClear();
+    fireEvent.keyDown(document.activeElement!, { key: 'Home' });
+    await waitFor(() => {
+      expect(callCoreRpc).toHaveBeenCalledWith(
+        expect.objectContaining({ params: { level: 'off' } })
+      );
+    });
+    expect(document.activeElement).toHaveAttribute('data-testid', 'activity-level-off');
+
+    // ArrowUp from the first wraps to the last, as a radio group does.
+    callCoreRpc.mockClear();
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' });
+    await waitFor(() => {
+      expect(callCoreRpc).toHaveBeenCalledWith(
+        expect.objectContaining({ params: { level: 'always_on' } })
+      );
+    });
+  });
+
   it('persists a new level selection via the update RPC', async () => {
     render(<AgentActivityPanel />);
     await waitFor(() => expect(levelButtons()).toHaveLength(5));

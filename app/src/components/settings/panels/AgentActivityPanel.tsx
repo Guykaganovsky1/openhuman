@@ -127,8 +127,9 @@ export default function AgentActivityPanel() {
             role="radiogroup"
             aria-label={t('activityLevel.title')}
             className="flex flex-col gap-2">
-            {LEVELS.map(({ key, value }) => {
+            {LEVELS.map(({ key, value }, index) => {
               const isSelected = settings?.level === value;
+              const selectedIndex = LEVELS.findIndex(l => l.value === settings?.level);
               const apiKey = key === 'alwaysOn' ? 'always_on' : (key as string);
               const costMin = getCostMin(value);
               const costMax = getCostMax(value);
@@ -138,6 +139,33 @@ export default function AgentActivityPanel() {
                   variant="secondary"
                   role="radio"
                   aria-checked={isSelected}
+                  // A radiogroup is one tab stop, not one per option: only the
+                  // checked card is tabbable (the first, when none is), and the
+                  // arrows move between them.
+                  tabIndex={isSelected || (selectedIndex === -1 && index === 0) ? 0 : -1}
+                  onKeyDown={event => {
+                    const last = LEVELS.length - 1;
+                    let next: number | null = null;
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowRight')
+                      next = index === last ? 0 : index + 1;
+                    else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft')
+                      next = index === 0 ? last : index - 1;
+                    else if (event.key === 'Home') next = 0;
+                    else if (event.key === 'End') next = last;
+                    if (next === null) return;
+                    event.preventDefault();
+                    const target = LEVELS[next];
+                    handleLevelChange(
+                      target.key === 'alwaysOn' ? 'always_on' : (target.key as string)
+                    );
+                    // Selection follows focus in a radio group, so the newly
+                    // selected option must actually receive it.
+                    (
+                      event.currentTarget.parentElement?.querySelectorAll('[role="radio"]')[
+                        next
+                      ] as HTMLElement | undefined
+                    )?.focus();
+                  }}
                   onClick={() => handleLevelChange(apiKey)}
                   disabled={status === 'saving'}
                   data-testid={`activity-level-${key}`}

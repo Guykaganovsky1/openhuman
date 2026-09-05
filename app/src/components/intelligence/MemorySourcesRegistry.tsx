@@ -176,9 +176,11 @@ export function MemorySourcesRegistry({
 
   const refresh = useCallback(async () => {
     try {
+      let listFailed = false;
       const [list, stats, health] = await Promise.all([
         listMemorySources().catch(err => {
           console.warn('[ui-flow][memory-sources] list failed', err);
+          listFailed = true;
           return [] as MemorySourceEntry[];
         }),
         memorySourcesStatusList().catch(err => {
@@ -196,8 +198,11 @@ export function MemorySourcesRegistry({
       setSources(list);
       setStatuses(stats);
       // The rows the store resolves scoped stage ids against, and its safety
-      // net for a live id this list no longer names (RC#5, #3295).
-      noteKnownSourceIds(list.map(source => source.id));
+      // net for a live id this list no longer names (RC#5, #3295). Only a
+      // list the core actually answered may reconcile: a failed request comes
+      // back as `[]`, and treating that as "no source exists" would tear down
+      // every running sync on one dropped RPC.
+      if (!listFailed) noteKnownSourceIds(list.map(source => source.id));
       setPipeline(health);
       // The core's own account of what is in flight (`sync_stage`,
       // openhuman#6019): seeds the bar for a run this page never saw start —

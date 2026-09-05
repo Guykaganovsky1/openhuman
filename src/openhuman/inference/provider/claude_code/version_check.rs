@@ -182,7 +182,16 @@ fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
         Ok(status) if status.success() => {}
         _ => return None,
     }
-    let path = PathBuf::from(stdout.trim());
+    // An interactive login shell runs the user's rc files, and one that prints
+    // a banner puts that text on the same stdout as `command -v`. Only the last
+    // non-empty line is the answer; joining them yields a path that no
+    // `is_file()` accepts, reporting an installed CLI as absent.
+    let path = stdout
+        .lines()
+        .rev()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(PathBuf::from)?;
     path.is_file().then(|| {
         log::debug!(
             "[claude-code][version] resolved via login shell path={}",

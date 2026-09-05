@@ -36,8 +36,14 @@ const SecurityPanel = () => {
   const keyringStatus = snapshot.keyringStatus;
   const modeBadgeVariant =
     MODE_BADGE_VARIANT[keyringStatus.activeMode] ?? MODE_BADGE_VARIANT.consent_pending;
-  // Unknown mode → fall back to the raw value rather than swallowing it.
-  const modeLabelKey = MODE_LABEL_KEY[keyringStatus.activeMode] ?? keyringStatus.activeMode;
+  // `activeMode` is a plain string, so a mode this build has no label for can
+  // reach here. Translate only what the table maps; anything else renders as
+  // the raw value, because a visible `keyring.settings.mode.<x>` is worse than
+  // an untranslated but accurate one.
+  const modeLabelKey = MODE_LABEL_KEY[keyringStatus.activeMode] ?? null;
+  const modeLabel = modeLabelKey
+    ? t(`keyring.settings.mode.${modeLabelKey}` as Parameters<typeof t>[0])
+    : keyringStatus.activeMode;
 
   const handleRetryProbe = async () => {
     setIsLoading(true);
@@ -72,9 +78,7 @@ const SecurityPanel = () => {
             label={t('keyring.settings.storageMode')}
             control={
               <div className="flex items-center gap-3">
-                <SettingsBadge variant={modeBadgeVariant}>
-                  {t(`keyring.settings.mode.${modeLabelKey}` as Parameters<typeof t>[0])}
-                </SettingsBadge>
+                <SettingsBadge variant={modeBadgeVariant}>{modeLabel}</SettingsBadge>
                 <span className="text-xs text-content-muted">
                   {t('keyring.settings.backend')}: {keyringStatus.backendName}
                 </span>

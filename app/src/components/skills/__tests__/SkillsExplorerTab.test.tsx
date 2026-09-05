@@ -194,6 +194,50 @@ describe('SkillsExplorerTab', () => {
     expect(screen.queryByTestId('registry-show-more')).toBeNull();
   });
 
+  // The other half of supersession: the superseded request's `finally` bails on
+  // the request-id check, so nothing else will clear the flag IT set. A pending
+  // "Show more" replaced by a refresh used to leave the control disabled for
+  // the rest of the session.
+  it('re-enables Show more when a refresh supersedes a pending append', async () => {
+    const { skillsApi } = await import('../../../services/api/skillsApi');
+    const { skillRegistryApi } = await import('../../../services/api/skillRegistryApi');
+    vi.mocked(skillsApi.listWorkflows).mockResolvedValue([]);
+    const entry = (i: number): CatalogEntry => ({
+      ...MOCK_CATALOG_ENTRY,
+      id: `paged-skill-${i}`,
+      name: `Paged Skill ${i}`,
+    });
+    const page = catalogPage(Array.from({ length: 60 }, (_, i) => entry(i)), 130);
+
+    const deferred: Array<(p: ReturnType<typeof catalogPage>) => void> = [];
+    vi.mocked(skillRegistryApi.browse)
+      .mockResolvedValueOnce(page)
+      .mockImplementation(() => new Promise(resolve => deferred.push(resolve)));
+
+    render(<SkillsExplorerTab />);
+    await waitFor(() => expect(screen.getByTestId('registry-show-more')).toBeInTheDocument());
+
+    // "Show more" is in flight and the control is disabled while it runs.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('registry-show-more'));
+    });
+    await waitFor(() => expect(deferred).toHaveLength(1));
+    expect(screen.getByTestId('registry-show-more')).toBeDisabled();
+
+    // A refresh supersedes it. The append will never clear its own flag.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh registry' }));
+    });
+    await waitFor(() => expect(deferred.length).toBeGreaterThan(1));
+
+    await act(async () => {
+      deferred[0](page);
+      deferred[deferred.length - 1](page);
+    });
+
+    await waitFor(() => expect(screen.getByTestId('registry-show-more')).not.toBeDisabled());
+  });
+
   // A superseded request still runs its `finally`. If the older one settles
   // second-to-last it must not clear the spinner that belongs to the request
   // whose rows will actually be rendered.

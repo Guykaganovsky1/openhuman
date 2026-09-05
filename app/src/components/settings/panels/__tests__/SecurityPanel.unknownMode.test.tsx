@@ -68,8 +68,11 @@ describe('SecurityPanel — unknown storage mode', () => {
   it('still renders the mode the core reported, even when unrecognised', () => {
     const badge = render('hardware_token_v2');
 
-    // The raw mode reaches the label (via a missing i18n key, so the key shows).
-    expect(badge.textContent).toContain('hardware_token_v2');
+    // The raw mode, and only that. It used to be spliced into a translation key
+    // that no locale defines, so the row read `keyring.settings.mode.…` — an
+    // internal identifier shown to the user in place of an answer.
+    expect(badge.textContent).toBe('hardware_token_v2');
+    expect(badge.textContent).not.toContain('keyring.settings.mode');
   });
 
   it('uses a distinct badge styling for each mode it does know', () => {

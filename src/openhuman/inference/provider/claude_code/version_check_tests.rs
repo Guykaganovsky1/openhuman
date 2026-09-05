@@ -195,6 +195,37 @@ fn the_login_shell_is_asked_as_an_interactive_login_shell() {
     );
 }
 
+/// An rc file that greets the user puts its banner on the same stdout as
+/// `command -v`. Reading all of it as one path resolves nothing, and the
+/// installed CLI is reported absent — a regression `-lic` made reachable.
+#[test]
+fn a_banner_printed_by_the_rc_files_does_not_hide_the_cli() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let resolved = dir.path().join("claude");
+    std::fs::write(&resolved, "#!/bin/sh\n").expect("write claude");
+
+    let shell = dir.path().join("chatty-shell");
+    std::fs::write(
+        &shell,
+        format!(
+            "#!/bin/sh\necho 'Welcome back!'\necho ''\necho {}\n",
+            resolved.display()
+        ),
+    )
+    .expect("write shell");
+    std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o755)).expect("chmod shell");
+
+    let found =
+        super::login_shell_lookup_with(shell.to_str().expect("utf8 path"), Duration::from_secs(10));
+    assert_eq!(
+        found.as_deref(),
+        Some(resolved.as_path()),
+        "the last non-empty line is the answer; the banner above it is not"
+    );
+}
+
 /// K3: the bound must reap the whole tree, not just the shell.
 ///
 /// An rc file that backgrounds anything — and `-i` means rc files run — leaves

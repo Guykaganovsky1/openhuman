@@ -11,17 +11,37 @@ import { openUrl } from './openUrl';
  * `about:`/`blob:`/`data:` and in-page anchors are left alone: they are not
  * remote pages, and a `data:` preview is a deliberate in-app render.
  */
-export function isExternalNavigation(href: string, appOrigin: string): boolean {
+export type LinkNavigation = 'ignore' | 'block' | 'external';
+
+/**
+ * What a click on `href` would do to the main webview.
+ *
+ * - `external` — a remote page. Hand it to the OS browser.
+ * - `block` — the app's own origin but NOT a hash route (`/settings`, say).
+ *   This app routes on the hash, so such a URL is a real page load: the webview
+ *   leaves the running app and there is no chrome to come back with. It is not
+ *   a remote page either, so handing it to the OS browser would be wrong —
+ *   preventing the navigation is the whole remedy.
+ * - `ignore` — an in-page anchor, a hash route, or a non-http(s) scheme
+ *   (`mailto:`, `data:`, `openhuman://`). None of these strand the user.
+ */
+export function classifyLinkNavigation(href: string, appOrigin: string): LinkNavigation {
   const trimmed = href.trim();
-  if (!trimmed || trimmed.startsWith('#')) return false;
+  if (!trimmed || trimmed.startsWith('#')) return 'ignore';
   let url: URL;
   try {
     url = new URL(trimmed, appOrigin);
   } catch {
-    return false;
+    return 'ignore';
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
-  return url.origin !== appOrigin;
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return 'ignore';
+  if (url.origin !== appOrigin) return 'external';
+  return url.hash ? 'ignore' : 'block';
+}
+
+/** True when `href` would take the webview to a remote page. */
+export function isExternalNavigation(href: string, appOrigin: string): boolean {
+  return classifyLinkNavigation(href, appOrigin) === 'external';
 }
 
 /**
@@ -55,9 +75,15 @@ export function installExternalLinkGuard(doc: Document = document): () => void {
     if (!anchor) return;
 
     const href = anchor.getAttribute('href') ?? '';
-    if (!isExternalNavigation(href, doc.location.origin)) return;
+    const kind = classifyLinkNavigation(href, doc.location.origin);
+    if (kind === 'ignore') return;
 
     event.preventDefault();
+    if (kind === 'block') {
+      // Same origin, no hash: a page load that would drop the running app.
+      // There is nothing to open elsewhere — stopping it is the fix.
+      return;
+    }
     void openUrl(anchor.href).catch(() => {
       // The OS handler refused; staying in the app beats a one-way navigation.
     });

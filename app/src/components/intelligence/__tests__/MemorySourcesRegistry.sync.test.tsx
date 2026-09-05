@@ -880,6 +880,32 @@ describe('MemorySourcesRegistry', () => {
     expect(screen.getByText('sync.sync')).toBeInTheDocument();
   });
 
+  // The safety net's own failure mode: `listMemorySources` answers `[]` when
+  // the RPC fails, and reconciling against that reads as "no source exists" —
+  // one dropped call would take down every running sync.
+  it('keeps a running sync when the source list request fails (U3 safety net)', async () => {
+    listMemorySources.mockResolvedValue([makeSource('src-live')]);
+    memorySourcesStatusList.mockResolvedValue([]);
+
+    renderWithProviders(<MemorySourcesRegistry pollIntervalMs={10} />);
+    await waitFor(() => expect(screen.getByText('Source src-live')).toBeInTheDocument());
+
+    act(() => {
+      window.dispatchEvent(makeSyncStageEvent({ stage: 'fetching', source_id: 'src-live' }));
+    });
+    await waitFor(() => expect(screen.getByText('sync.syncing')).toBeInTheDocument());
+
+    // The poll's list call fails. The row goes away with the list, but the run
+    // is still in flight — so when the next poll succeeds it must come back
+    // syncing, not idle.
+    listMemorySources.mockRejectedValue(new Error('rpc down'));
+    await waitFor(() => expect(screen.queryByText('Source src-live')).not.toBeInTheDocument());
+
+    listMemorySources.mockResolvedValue([makeSource('src-live')]);
+    await waitFor(() => expect(screen.getByText('Source src-live')).toBeInTheDocument());
+    expect(screen.getByText('sync.syncing')).toBeInTheDocument();
+  });
+
   // ── U18: removing a source is confirmed ───────────────────────────────────
 
   it('asks for confirmation before removing a source, and removes on confirm (U18)', async () => {
