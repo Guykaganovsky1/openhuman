@@ -3169,7 +3169,7 @@ const messages: TranslationMap = {
   'channels.connectHelp.telegram':
     'Wybierz metodę poniżej: napisz do zarządzanego bota OpenHuman, aby go połączyć, albo wklej własny token bota od @BotFather.',
   'channels.connectHelp.imessage':
-    'Nie są potrzebne żadne dane logowania. OpenHuman czyta lokalną bazę Wiadomości, więc przyznaj mu Pełny dostęp do dysku w Ustawieniach systemowych > Prywatność i ochrona > Pełny dostęp do dysku, a następnie uruchom aplikację ponownie.',
+    'Nie są potrzebne żadne dane logowania. OpenHuman czyta lokalną bazę Wiadomości, więc przyznaj mu Pełny dostęp do dysku w Ustawieniach systemowych > Prywatność i bezpieczeństwo > Pełny dostęp do dysku, a następnie uruchom aplikację ponownie.',
   'channels.connectHelp.slackNote':
     'Szukasz Slacka? Slack łączy się jako aplikacja w Połączenia → OAuth, a nie jako kanał wiadomości tutaj.',
   'channels.web.displayName': 'Sieć',

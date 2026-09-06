@@ -20,6 +20,7 @@ import {
   markRead,
   type NotificationCategory,
   type NotificationItem,
+  restoreIntegrationStatus,
   selectUnreadCount,
 } from '../store/notificationSlice';
 
@@ -152,14 +153,18 @@ const Notifications = () => {
   const handleMarkAllRead = () =>
     runBulk(async () => {
       dispatch(markAllRead());
-      const unreadIds = integrationItems.filter(n => n.status === 'unread').map(n => n.id);
-      console.debug(`[ui-flow][notifications] mark all read integration_ids=${unreadIds.length}`);
-      for (const id of unreadIds) {
-        dispatch(markIntegrationRead(id));
+      const unread = integrationItems.filter(n => n.status === 'unread');
+      console.debug(`[ui-flow][notifications] mark all read integration_ids=${unread.length}`);
+      for (const item of unread) {
+        // Optimistic first so the list settles, then rolled back on failure —
+        // otherwise the row reads `read` while the core still has it unread,
+        // hiding an actionable notification until some later refresh.
+        dispatch(markIntegrationRead(item.id));
         try {
-          await markNotificationRead(id);
+          await markNotificationRead(item.id);
         } catch (err) {
-          console.warn('[ui-flow][notifications] mark read failed', id, err);
+          console.warn('[ui-flow][notifications] mark read failed', item.id, err);
+          dispatch(restoreIntegrationStatus({ id: item.id, status: item.status }));
         }
       }
     });
@@ -167,14 +172,15 @@ const Notifications = () => {
   const handleClearAll = () =>
     runBulk(async () => {
       dispatch(clearAll());
-      const ids = integrationItems.filter(n => n.status !== 'dismissed').map(n => n.id);
-      console.debug(`[ui-flow][notifications] clear all integration_ids=${ids.length}`);
-      for (const id of ids) {
-        dispatch(dismissIntegrationNotification(id));
+      const pending = integrationItems.filter(n => n.status !== 'dismissed');
+      console.debug(`[ui-flow][notifications] clear all integration_ids=${pending.length}`);
+      for (const item of pending) {
+        dispatch(dismissIntegrationNotification(item.id));
         try {
-          await dismissNotification(id);
+          await dismissNotification(item.id);
         } catch (err) {
-          console.warn('[ui-flow][notifications] dismiss failed', id, err);
+          console.warn('[ui-flow][notifications] dismiss failed', item.id, err);
+          dispatch(restoreIntegrationStatus({ id: item.id, status: item.status }));
         }
       }
     });

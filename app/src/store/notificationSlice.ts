@@ -147,6 +147,28 @@ const notificationSlice = createSlice({
         state.integrationUnreadCount = Math.max(0, state.integrationUnreadCount - 1);
       }
     },
+    /**
+     * Put one integration item back the way it was.
+     *
+     * The bulk actions dispatch optimistically so the list settles immediately,
+     * which is right until the RPC fails: without this the row keeps the
+     * optimistic `read`/`dismissed` while the core still holds the old status,
+     * so an actionable notification is hidden until some later refresh happens
+     * to correct it. The caller records the status it saw and hands it back.
+     */
+    restoreIntegrationStatus(
+      state,
+      action: PayloadAction<{ id: string; status: IntegrationNotification['status'] }>
+    ) {
+      const n = state.integrationItems.find(i => i.id === action.payload.id);
+      if (!n || n.status === action.payload.status) return;
+      const wasUnread = n.status === 'unread';
+      n.status = action.payload.status;
+      const isUnread = n.status === 'unread';
+      if (isUnread && !wasUnread) state.integrationUnreadCount += 1;
+      else if (!isUnread && wasUnread)
+        state.integrationUnreadCount = Math.max(0, state.integrationUnreadCount - 1);
+    },
     markIntegrationActed(state, action: PayloadAction<string>) {
       const n = state.integrationItems.find(i => i.id === action.payload);
       if (n) {
@@ -213,6 +235,7 @@ export const {
   setIntegrationError,
   setIntegrationNotifications,
   markIntegrationRead,
+  restoreIntegrationStatus,
   markIntegrationActed,
   dismissIntegrationNotification,
   addIntegrationNotification,
