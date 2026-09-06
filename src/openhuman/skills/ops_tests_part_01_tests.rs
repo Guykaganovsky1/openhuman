@@ -540,6 +540,32 @@ fn read_skill_resource_rejects_symlinked_intermediate_dir() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn read_skill_resource_rejects_symlinked_skill_root() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempfile::tempdir().unwrap();
+    let ws = dir.path();
+    let skill_dir = make_legacy_skill(ws, "demo");
+    write(&skill_dir.join("notes.txt"), "real content");
+
+    // Swap the skill root itself for a symlink to an external tree that
+    // carries the same relative file. Without a no-follow open of the root,
+    // the read would succeed and every containment check below it would agree,
+    // because the resource really does sit under the replacement root.
+    let external = tempfile::tempdir().unwrap();
+    write(&external.path().join("notes.txt"), "leaked content");
+    std::fs::remove_dir_all(&skill_dir).unwrap();
+    symlink(external.path(), &skill_dir).unwrap();
+
+    let res = read_workflow_resource(ws, "demo", Path::new("notes.txt"));
+    assert!(
+        res.as_deref() != Ok("leaked content"),
+        "symlinked skill root must not serve the external file"
+    );
+}
+
 #[test]
 fn read_skill_resource_rejects_oversized_file() {
     let dir = tempfile::tempdir().unwrap();

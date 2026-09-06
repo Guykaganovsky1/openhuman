@@ -275,6 +275,15 @@ fn resolve_workflow_for_resource(
 ///
 /// `relative` is already validated to be non-empty and to contain only
 /// `Component::Normal` parts, which is what makes the walk below total.
+///
+/// The root itself is opened no-follow as well, so the skill directory cannot
+/// be swapped for a symlink between `canonicalize` and this call. What remains
+/// uncovered is an ANCESTOR of the skill root being replaced — and that is not
+/// worth further machinery, because an attacker who can write there does not
+/// need a race at all: they can drop a `SKILL.md` in the skills tree and be
+/// discovered through the ordinary path. The race only buys something to an
+/// attacker confined to the tree itself, which is exactly what these opens
+/// close.
 #[cfg(unix)]
 fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String> {
     use std::ffi::{CString, OsStr};
@@ -321,7 +330,7 @@ fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String
     let root_fd = unsafe {
         libc::open(
             root_c.as_ptr(),
-            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC,
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
         )
     };
     if root_fd < 0 {
@@ -409,7 +418,7 @@ fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String
 
     let root_handle = std::fs::OpenOptions::new()
         .read(true)
-        .custom_flags(BACKUP_SEMANTICS)
+        .custom_flags(BACKUP_SEMANTICS | OPEN_REPARSE_POINT)
         .open(root)
         .map_err(|e| format!("failed to open skill root {}: {e}", root.display()))?;
     let root_final = final_path(&root_handle, "skill root")?;
