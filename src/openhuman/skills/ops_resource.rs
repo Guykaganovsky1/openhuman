@@ -385,7 +385,7 @@ pub(crate) fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::F
 /// same normalised `\\?\` form and can be compared as prefixes.
 #[cfg(windows)]
 pub(crate) fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String> {
-    use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Storage::FileSystem::{
         GetFinalPathNameByHandleW, FILE_NAME_NORMALIZED,
@@ -430,6 +430,25 @@ pub(crate) fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::F
         .custom_flags(BACKUP_SEMANTICS | OPEN_REPARSE_POINT)
         .open(root)
         .map_err(|e| format!("failed to open skill root {}: {e}", root.display()))?;
+
+    // The unix side refuses a symlinked root outright (`O_NOFOLLOW` on the root
+    // open). Do the same here rather than relying on the containment check
+    // below to notice: `GetFinalPathNameByHandleW` is documented to answer for
+    // the object the handle names, and whether that is the link or its target
+    // for a handle opened with `FILE_FLAG_OPEN_REPARSE_POINT` is not something
+    // to bet a root escape on. The attributes come off the HANDLE, so this is
+    // not a path re-resolution that could be swapped underneath it.
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+    let root_meta = root_handle
+        .metadata()
+        .map_err(|e| format!("failed to stat skill root {}: {e}", root.display()))?;
+    if root_meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(format!("skill root {} is a reparse point", root.display()));
+    }
+    if !root_meta.is_dir() {
+        return Err(format!("skill root {} is not a directory", root.display()));
+    }
+
     let root_final = final_path(&root_handle, "skill root")?;
 
     let path = root.join(relative);

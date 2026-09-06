@@ -269,7 +269,10 @@ export function ThreadList({
                   // to tell which conversation each one acts on.
                   aria-label={t('chat.renameThreadAria').replace(
                     '{title}',
-                    resolveTitle(thread.id)
+                    // A function replacement, because a title carrying `$&` or
+                    // `$1` would otherwise be read as a substitution pattern
+                    // and garble the accessible name.
+                    () => resolveTitle(thread.id)
                   )}
                   title={t('chat.editThreadTitle')}
                   // `hidden`, not `opacity-0`: an invisible-but-laid-out button
@@ -295,7 +298,10 @@ export function ThreadList({
                   className="hidden h-5 w-5 flex-none items-center justify-center rounded text-content-faint transition-colors hover:bg-surface/60 hover:text-coral-500 group-hover:inline-flex"
                   aria-label={t('chat.deleteThreadAria').replace(
                     '{title}',
-                    resolveTitle(thread.id)
+                    // A function replacement, because a title carrying `$&` or
+                    // `$1` would otherwise be read as a substitution pattern
+                    // and garble the accessible name.
+                    () => resolveTitle(thread.id)
                   )}
                   title={t('chat.deleteThread')}>
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
