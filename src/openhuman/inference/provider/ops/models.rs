@@ -53,6 +53,17 @@ fn endpoint_is_http(endpoint: &str) -> bool {
     endpoint.starts_with("http://") || endpoint.starts_with("https://")
 }
 
+/// Whether an endpoint is a deliberate CLI placeholder rather than a URL.
+///
+/// `cli://` is the marker the settings UI emits for a provider that shells out
+/// instead of making HTTP calls (`aiPanelTypes.ts` builds `cli://claude-code`).
+/// It is what separates "this provider has no listing by design" from "the user
+/// mistyped a URL" — and those must not share an answer, because the editor
+/// reads a successful listing as a passed verification.
+fn endpoint_is_cli(endpoint: &str) -> bool {
+    endpoint.trim().to_ascii_lowercase().starts_with("cli://")
+}
+
 /// The models config already names for a provider that cannot be probed.
 ///
 /// Only the legacy `default_model` field can hold one — there is no per-entry
@@ -118,6 +129,18 @@ pub async fn list_configured_models_from_config(
     // instead — a listing with nothing to list is a successful empty listing,
     // not a fault.
     if !endpoint_is_http(&entry.endpoint) {
+        // Only the `cli://` placeholder gets the pass. Anything else that is
+        // not http(s) is a malformed URL — `htps://api.example.com` and the
+        // like — and answering it with a successful empty listing would tell
+        // `useCloudProviderEditorSubmit` that verification passed, persisting
+        // a provider that can never work and hiding both the probe error and
+        // the explicit "add without verifying" choice.
+        if !endpoint_is_cli(&entry.endpoint) {
+            return Err(format!(
+                "provider '{}' has endpoint '{}', which is not an http(s) URL and cannot be probed",
+                entry.slug, entry.endpoint
+            ));
+        }
         let models = config_declared_models(&entry);
         log::debug!(
             "[providers][list_models] slug={} endpoint={} is not http(s); skipping the /models probe and answering from config ({} model(s))",

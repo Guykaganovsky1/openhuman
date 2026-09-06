@@ -31,7 +31,9 @@ fn non_omlx_slug_does_not_fall_back() {
     );
 }
 
-use super::{config_declared_models, endpoint_is_http, list_configured_models_from_config};
+use super::{
+    config_declared_models, endpoint_is_cli, endpoint_is_http, list_configured_models_from_config,
+};
 use crate::openhuman::config::schema::cloud_providers::{AuthStyle, CloudProviderCreds};
 
 #[test]
@@ -42,6 +44,21 @@ fn only_http_endpoints_are_probed() {
     assert!(!endpoint_is_http("cli://claude-code"));
     assert!(!endpoint_is_http(""));
     assert!(!endpoint_is_http("claude-code"));
+}
+
+#[test]
+fn only_the_cli_placeholder_skips_the_probe() {
+    // The deliberate case the bypass exists for.
+    assert!(endpoint_is_cli("cli://claude-code"));
+    assert!(endpoint_is_cli("  CLI://claude-code  "));
+
+    // Typos must NOT reach the bypass: answering them with a successful empty
+    // listing reads as a passed verification in the provider editor and
+    // persists an endpoint that can never work.
+    assert!(!endpoint_is_cli("htps://api.example.com"));
+    assert!(!endpoint_is_cli("api.example.com"));
+    assert!(!endpoint_is_cli("ftp://api.example.com"));
+    assert!(!endpoint_is_cli(""));
 }
 
 fn claude_code_entry() -> CloudProviderCreds {
