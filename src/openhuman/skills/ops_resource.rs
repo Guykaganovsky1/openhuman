@@ -2,6 +2,7 @@
 //! serving a bundled file from it, hardened against traversal and symlink
 //! escape.
 
+use std::io::Read;
 use std::path::Path;
 
 use super::ops_discover::{load_workflow_metadata_for_profile, scan_root};
@@ -147,19 +148,8 @@ pub fn read_workflow_resource_with_profile(
         return Err("resource path is not a regular file".to_string());
     }
 
-    // Size gate — check via metadata before reading so we never allocate the
-    // buffer for an oversized file.
-    let size = leaf_meta.len();
-    if size > MAX_WORKFLOW_RESOURCE_BYTES {
-        return Err(format!(
-            "resource file is {size} bytes, exceeds limit of {MAX_WORKFLOW_RESOURCE_BYTES}"
-        ));
-    }
-
     // Canonicalize the full path and verify it stays within the skill root.
-    // This catches any symlink reachable via an intermediate path component
-    // that was created after our initial checks (race-ish, but the
-    // `is_symlink` check above makes the obvious attack infeasible).
+    // This catches a symlink reachable via an intermediate path component.
     let canonical_requested = std::fs::canonicalize(&requested).map_err(|e| {
         format!(
             "failed to canonicalize resource {}: {e}",
@@ -173,14 +163,46 @@ pub fn read_workflow_resource_with_profile(
         ));
     }
 
-    // Read the bytes and enforce strict UTF-8 (no lossy replacement — we
-    // would rather refuse a binary file than silently mangle it).
-    let bytes = std::fs::read(&canonical_requested).map_err(|e| {
-        format!(
-            "failed to read resource {}: {e}",
-            canonical_requested.display()
-        )
-    })?;
+    // Everything above validates a PATH, and a path can be swapped between
+    // the check and the read: these skill roots are user-managed, so a
+    // process with write access can replace a component with a symlink after
+    // the `starts_with` test passes. Open the leaf with no-follow semantics
+    // and re-validate the OPEN DESCRIPTOR, then read through that same
+    // descriptor — the bytes we return are then provably the object we
+    // checked, not whatever the path resolves to a moment later.
+    let file = open_no_follow(&canonical_requested)?;
+
+    // Type and size come from the descriptor (fstat), not from the path.
+    let meta = file
+        .metadata()
+        .map_err(|e| format!("failed to stat opened resource: {e}"))?;
+    if !meta.is_file() {
+        return Err("resource path is not a regular file".to_string());
+    }
+    let size = meta.len();
+    if size > MAX_WORKFLOW_RESOURCE_BYTES {
+        return Err(format!(
+            "resource file is {size} bytes, exceeds limit of {MAX_WORKFLOW_RESOURCE_BYTES}"
+        ));
+    }
+
+    // Bound the read independently of the reported size — a file that grows
+    // between fstat and read must not be able to hand us more than the limit.
+    let mut bytes = Vec::with_capacity(size as usize);
+    file.take(MAX_WORKFLOW_RESOURCE_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| {
+            format!(
+                "failed to read resource {}: {e}",
+                canonical_requested.display()
+            )
+        })?;
+    if bytes.len() as u64 > MAX_WORKFLOW_RESOURCE_BYTES {
+        return Err(format!(
+            "resource file exceeds limit of {MAX_WORKFLOW_RESOURCE_BYTES} bytes"
+        ));
+    }
+
     let content = std::str::from_utf8(&bytes)
         .map_err(|e| format!("resource is not valid UTF-8 text: {e}"))?
         .to_string();
@@ -235,4 +257,35 @@ fn resolve_workflow_for_resource(
         (Some(skill), None) | (None, Some(skill)) => Ok(skill),
         (None, None) => Err(format!("skill '{skill_id}' not found")),
     }
+}
+
+/// Open `path` without following a final symlink component.
+///
+/// `File::open` follows symlinks, which is exactly the window the path checks
+/// above cannot close: between `canonicalize` and the open, the leaf can be
+/// replaced. `O_NOFOLLOW` (unix) and `FILE_FLAG_OPEN_REPARSE_POINT` (windows)
+/// make that replacement an error rather than a silent redirect.
+///
+/// Windows returns a handle to the reparse point itself rather than failing,
+/// so the caller's `metadata().is_file()` check is what rejects it there —
+/// which is why that check reads the descriptor and not the path.
+fn open_no_follow(path: &Path) -> Result<std::fs::File, String> {
+    let mut opts = std::fs::OpenOptions::new();
+    opts.read(true);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.custom_flags(libc::O_NOFOLLOW);
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        // FILE_FLAG_OPEN_REPARSE_POINT
+        opts.custom_flags(0x0020_0000);
+    }
+
+    opts.open(path)
+        .map_err(|e| format!("failed to open resource {}: {e}", path.display()))
 }

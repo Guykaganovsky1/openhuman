@@ -29,7 +29,8 @@ export type LinkNavigation = 'ignore' | 'block' | 'external';
 export function classifyLinkNavigation(
   href: string,
   appOrigin: string,
-  appPathname = '/'
+  appPathname = '/',
+  appSearch = ''
 ): LinkNavigation {
   const trimmed = href.trim();
   if (!trimmed || trimmed.startsWith('#')) return 'ignore';
@@ -43,8 +44,9 @@ export function classifyLinkNavigation(
   if (url.origin !== appOrigin) return 'external';
   // A hash alone does not make a hash route: `/other-page#/chat` carries one and
   // still loads `/other-page`. Only a hash on the document already loaded is an
-  // in-app route.
-  return url.hash && url.pathname === appPathname ? 'ignore' : 'block';
+  // in-app route — and "already loaded" includes the query, since `/app?a=1`
+  // clicked from `/app?b=2` is a document navigation however it is hashed.
+  return url.hash && url.pathname === appPathname && url.search === appSearch ? 'ignore' : 'block';
 }
 
 /** True when `href` would take the webview to a remote page. */
@@ -83,7 +85,12 @@ export function installExternalLinkGuard(doc: Document = document): () => void {
     if (!anchor) return;
 
     const href = anchor.getAttribute('href') ?? '';
-    const kind = classifyLinkNavigation(href, doc.location.origin, doc.location.pathname);
+    const kind = classifyLinkNavigation(
+      href,
+      doc.location.origin,
+      doc.location.pathname,
+      doc.location.search
+    );
     if (kind === 'ignore') return;
 
     event.preventDefault();

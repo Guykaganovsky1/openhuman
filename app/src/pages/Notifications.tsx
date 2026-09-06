@@ -67,6 +67,11 @@ const Notifications = () => {
     [integrationItems]
   );
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('all');
+  // One guard for BOTH bulk actions, not one each: `notification_mark_read`
+  // writes `read` and `notification_dismiss` writes `dismissed`, so two loops
+  // running over the same ids let the later RPC win on the server while Redux
+  // already shows the other outcome. Serialising them keeps the two in step.
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // Only offer chips for categories that actually appear in the feed — no dead chips.
   const presentCategories = useMemo(
@@ -126,30 +131,42 @@ const Notifications = () => {
   // notification center's own controls use. Optimistic dispatch first, so the
   // list settles even if a call fails.
   const handleMarkAllRead = async () => {
-    dispatch(markAllRead());
-    const unreadIds = integrationItems.filter(n => n.status === 'unread').map(n => n.id);
-    console.debug(`[ui-flow][notifications] mark all read integration_ids=${unreadIds.length}`);
-    for (const id of unreadIds) {
-      dispatch(markIntegrationRead(id));
-      try {
-        await markNotificationRead(id);
-      } catch (err) {
-        console.warn('[ui-flow][notifications] mark read failed', id, err);
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      dispatch(markAllRead());
+      const unreadIds = integrationItems.filter(n => n.status === 'unread').map(n => n.id);
+      console.debug(`[ui-flow][notifications] mark all read integration_ids=${unreadIds.length}`);
+      for (const id of unreadIds) {
+        dispatch(markIntegrationRead(id));
+        try {
+          await markNotificationRead(id);
+        } catch (err) {
+          console.warn('[ui-flow][notifications] mark read failed', id, err);
+        }
       }
+    } finally {
+      setBulkBusy(false);
     }
   };
 
   const handleClearAll = async () => {
-    dispatch(clearAll());
-    const ids = integrationItems.filter(n => n.status !== 'dismissed').map(n => n.id);
-    console.debug(`[ui-flow][notifications] clear all integration_ids=${ids.length}`);
-    for (const id of ids) {
-      dispatch(dismissIntegrationNotification(id));
-      try {
-        await dismissNotification(id);
-      } catch (err) {
-        console.warn('[ui-flow][notifications] dismiss failed', id, err);
+    if (bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      dispatch(clearAll());
+      const ids = integrationItems.filter(n => n.status !== 'dismissed').map(n => n.id);
+      console.debug(`[ui-flow][notifications] clear all integration_ids=${ids.length}`);
+      for (const id of ids) {
+        dispatch(dismissIntegrationNotification(id));
+        try {
+          await dismissNotification(id);
+        } catch (err) {
+          console.warn('[ui-flow][notifications] dismiss failed', id, err);
+        }
       }
+    } finally {
+      setBulkBusy(false);
     }
   };
 
@@ -224,7 +241,7 @@ const Notifications = () => {
                 size="xs"
                 data-testid="alerts-mark-all-read"
                 onClick={() => void handleMarkAllRead()}
-                disabled={unread === 0 && integrationUnread === 0}>
+                disabled={bulkBusy || (unread === 0 && integrationUnread === 0)}>
                 {t('alerts.markAllRead')}
               </Button>
               <Button
@@ -232,7 +249,7 @@ const Notifications = () => {
                 size="xs"
                 data-testid="alerts-clear-all"
                 onClick={() => void handleClearAll()}
-                disabled={items.length === 0 && integrationVisible.length === 0}>
+                disabled={bulkBusy || (items.length === 0 && integrationVisible.length === 0)}>
                 {t('common.clear')}
               </Button>
             </div>

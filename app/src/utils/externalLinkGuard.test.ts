@@ -42,6 +42,19 @@ describe('classifyLinkNavigation', () => {
     expect(classifyLinkNavigation('/other-page#/chat', APP_ORIGIN)).toBe('block');
     expect(classifyLinkNavigation(`${APP_ORIGIN}/other#/chat`, APP_ORIGIN)).toBe('block');
     expect(classifyLinkNavigation('/app.html#/chat', APP_ORIGIN, '/app.html')).toBe('ignore');
+
+    // A hash route must match the query too: `/app.html?a=1#/chat` clicked
+    // from `/app.html?b=2` reloads the document, hash or not.
+    expect(classifyLinkNavigation('/app.html?a=1#/chat', APP_ORIGIN, '/app.html', '?b=2')).toBe(
+      'block'
+    );
+    expect(classifyLinkNavigation('/app.html?a=1#/chat', APP_ORIGIN, '/app.html', '?a=1')).toBe(
+      'ignore'
+    );
+    // Dropping an existing query is a navigation as well.
+    expect(classifyLinkNavigation('/app.html#/chat', APP_ORIGIN, '/app.html', '?a=1')).toBe(
+      'block'
+    );
   });
 
   it('leaves hash routes and foreign schemes alone, and sends remote pages out', () => {
