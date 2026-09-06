@@ -352,21 +352,89 @@ fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String
     Ok(std::fs::File::from(file))
 }
 
-/// Windows fallback: open the joined path with the reparse-point flag.
+/// Windows: open the leaf with the reparse-point flag, then verify the HANDLE.
 ///
-/// There is no `openat` here, so this constrains the final component only —
-/// the intermediate-directory swap the unix walk above closes is still open on
-/// Windows. The caller's descriptor-based type and size checks still apply, and
-/// a reparse point opened this way fails the `is_file` test rather than being
-/// followed.
+/// Windows has no `openat`, so the walk the unix path uses is not available
+/// and the open still takes a joined path — which on its own would leave the
+/// intermediate-directory swap open. What closes it is checking afterwards
+/// what the handle actually refers to: `GetFinalPathNameByHandleW` answers for
+/// the opened object, not for a path that can be re-resolved, so if a
+/// directory component was replaced mid-open the final path lands outside the
+/// root and the read is refused. The reparse-point flag still keeps a
+/// symlinked leaf from being followed in the first place.
+///
+/// Both sides of the comparison come from the same API, so both are in the
+/// same normalised `\\?\` form and can be compared as prefixes.
 #[cfg(windows)]
 fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String> {
     use std::os::windows::fs::OpenOptionsExt;
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Storage::FileSystem::{
+        GetFinalPathNameByHandleW, FILE_NAME_NORMALIZED,
+    };
+
+    // FILE_FLAG_OPEN_REPARSE_POINT / FILE_FLAG_BACKUP_SEMANTICS
+    const OPEN_REPARSE_POINT: u32 = 0x0020_0000;
+    const BACKUP_SEMANTICS: u32 = 0x0200_0000;
+
+    fn final_path(handle: &impl AsRawHandle, what: &str) -> Result<Vec<u16>, String> {
+        let raw = handle.as_raw_handle();
+        // SAFETY: `raw` is a live handle owned by the caller for both calls.
+        // The first passes a null buffer with length 0, which the API answers
+        // with the size it needs (including the NUL); the second fills it.
+        let needed = unsafe {
+            GetFinalPathNameByHandleW(raw, std::ptr::null_mut(), 0, FILE_NAME_NORMALIZED)
+        };
+        if needed == 0 {
+            return Err(format!(
+                "failed to resolve {what}: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        let mut buf = vec![0u16; needed as usize];
+        // SAFETY: `buf` has `needed` elements, which is what the sizing call
+        // above asked for.
+        let written = unsafe {
+            GetFinalPathNameByHandleW(raw, buf.as_mut_ptr(), needed, FILE_NAME_NORMALIZED)
+        };
+        if written == 0 || written >= needed {
+            return Err(format!(
+                "failed to resolve {what}: {}",
+                std::io::Error::last_os_error()
+            ));
+        }
+        buf.truncate(written as usize);
+        Ok(buf)
+    }
+
+    let root_handle = std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(BACKUP_SEMANTICS)
+        .open(root)
+        .map_err(|e| format!("failed to open skill root {}: {e}", root.display()))?;
+    let root_final = final_path(&root_handle, "skill root")?;
 
     let path = root.join(relative);
-    std::fs::OpenOptions::new()
+    let file = std::fs::OpenOptions::new()
         .read(true)
-        .custom_flags(0x0020_0000) // FILE_FLAG_OPEN_REPARSE_POINT
+        .custom_flags(OPEN_REPARSE_POINT)
         .open(&path)
-        .map_err(|e| format!("failed to open resource {}: {e}", path.display()))
+        .map_err(|e| format!("failed to open resource {}: {e}", path.display()))?;
+    let file_final = final_path(&file, "resource")?;
+
+    // The resource must sit strictly beneath the root: same prefix, and the
+    // next character a separator, so `\\?\C:\skills\a` cannot admit
+    // `\\?\C:\skills\attack`.
+    let separator = u16::from(b'\\');
+    let contained = file_final.len() > root_final.len()
+        && file_final.starts_with(&root_final)
+        && file_final[root_final.len()] == separator;
+    if !contained {
+        return Err(format!(
+            "resource path escapes skill root: {}",
+            path.display()
+        ));
+    }
+
+    Ok(file)
 }
