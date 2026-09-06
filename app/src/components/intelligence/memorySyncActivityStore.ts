@@ -222,16 +222,23 @@ export function resolveSyncRowId(
   knownIds: ReadonlySet<string>
 ): string | null {
   const candidates: string[] = [];
+  const stripped = data?.source_id ? stripSourceScopePrefix(data.source_id) : null;
   if (data?.source_id) {
     candidates.push(data.source_id);
-    const stripped = stripSourceScopePrefix(data.source_id);
     if (stripped) candidates.push(stripped);
   }
   if (data?.connection_id) candidates.push(data.connection_id);
   for (const candidate of candidates) {
     if (knownIds.has(candidate)) return candidate;
   }
-  return candidates[0] ?? null;
+  // Nothing matched, which includes the case where the row list has not loaded
+  // yet — `knownIds` is empty on first paint and an event can beat it. Falling
+  // back to the raw `source_id` there would reintroduce the bug this function
+  // exists to fix: a scoped `workspace:folder:src_…` never keys the row, so the
+  // terminal event misses and the row sits on "Syncing…" forever. The bare tail
+  // IS the row id by construction, so prefer it whenever we have one; that makes
+  // resolution independent of whether the list arrived first.
+  return stripped ?? candidates[0] ?? null;
 }
 
 /** Apply one stage event. Exported for tests; the window listener below is the caller. */

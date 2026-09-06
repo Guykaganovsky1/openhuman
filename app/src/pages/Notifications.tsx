@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import ChipTabs from '../components/layout/ChipTabs';
@@ -71,7 +71,26 @@ const Notifications = () => {
   // writes `read` and `notification_dismiss` writes `dismissed`, so two loops
   // running over the same ids let the later RPC win on the server while Redux
   // already shows the other outcome. Serialising them keeps the two in step.
+  //
+  // The lock is a ref, and the state is only for rendering. `useState` does not
+  // update synchronously, so two clicks landing in the same tick would both
+  // read `false` from state and both proceed — which is the exact race this
+  // guard exists to stop. A ref is written before the first `await`, so the
+  // second caller sees it whatever React has done with the re-render.
+  const bulkBusyRef = useRef(false);
   const [bulkBusy, setBulkBusy] = useState(false);
+
+  const runBulk = async (work: () => Promise<void>) => {
+    if (bulkBusyRef.current) return;
+    bulkBusyRef.current = true;
+    setBulkBusy(true);
+    try {
+      await work();
+    } finally {
+      bulkBusyRef.current = false;
+      setBulkBusy(false);
+    }
+  };
 
   // Only offer chips for categories that actually appear in the feed — no dead chips.
   const presentCategories = useMemo(
@@ -130,10 +149,8 @@ const Notifications = () => {
   // RPC for either, so each id goes through the same per-id call the
   // notification center's own controls use. Optimistic dispatch first, so the
   // list settles even if a call fails.
-  const handleMarkAllRead = async () => {
-    if (bulkBusy) return;
-    setBulkBusy(true);
-    try {
+  const handleMarkAllRead = () =>
+    runBulk(async () => {
       dispatch(markAllRead());
       const unreadIds = integrationItems.filter(n => n.status === 'unread').map(n => n.id);
       console.debug(`[ui-flow][notifications] mark all read integration_ids=${unreadIds.length}`);
@@ -145,15 +162,10 @@ const Notifications = () => {
           console.warn('[ui-flow][notifications] mark read failed', id, err);
         }
       }
-    } finally {
-      setBulkBusy(false);
-    }
-  };
+    });
 
-  const handleClearAll = async () => {
-    if (bulkBusy) return;
-    setBulkBusy(true);
-    try {
+  const handleClearAll = () =>
+    runBulk(async () => {
       dispatch(clearAll());
       const ids = integrationItems.filter(n => n.status !== 'dismissed').map(n => n.id);
       console.debug(`[ui-flow][notifications] clear all integration_ids=${ids.length}`);
@@ -165,10 +177,7 @@ const Notifications = () => {
           console.warn('[ui-flow][notifications] dismiss failed', id, err);
         }
       }
-    } finally {
-      setBulkBusy(false);
-    }
-  };
+    });
 
   const { view, setView, nav } = usePageWelcomeView({
     ariaLabel: t('nav.alerts'),
