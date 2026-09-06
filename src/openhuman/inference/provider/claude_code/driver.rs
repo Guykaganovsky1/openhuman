@@ -363,10 +363,61 @@ fn append_system_prompt_args(
     ])
 }
 
+/// Refuse a turn whose input is remote-untrusted.
+///
+/// This provider's tools are not OpenHuman's. The CLI runs its own `Bash` /
+/// `Edit` / `Write` inside its own agentic loop, and `event_mapper` drops both
+/// the `tool_use` call and its `tool_result` for exactly that reason — so the
+/// approval gate never observes them and CANNOT observe them. Every other
+/// provider routes tool calls back through `gate_intercept`, where
+/// `AgentTurnOrigin::ExternalChannel` fails closed; here there is nothing to
+/// intercept.
+///
+/// That is fine for a turn the desktop user typed. It is not fine for one an
+/// inbound Discord/Telegram/Slack message drove: with `full_access` on, the
+/// sender's text would steer a shell running as the desktop user, and on the
+/// default `acceptEdits` posture it would still write files unprompted. The
+/// only place to enforce this is before the spawn, so that is where it is.
+///
+/// `Unknown` is refused with the same reasoning `gate_intercept` uses — an
+/// unlabelled origin is an entry point that forgot to scope one, and guessing
+/// "probably local" is how a gate becomes decorative.
+fn refuse_untrusted_origin() -> anyhow::Result<()> {
+    use crate::openhuman::agent::turn_origin::{self, AgentTurnOrigin};
+
+    match turn_origin::current().unwrap_or(AgentTurnOrigin::Unknown) {
+        AgentTurnOrigin::ExternalChannel {
+            ref channel,
+            ref sender,
+            ..
+        } => {
+            log::warn!(
+                "[claude-code][driver] refusing turn from external channel={} sender={:?}: this provider's native tools cannot be routed through the approval gate",
+                channel,
+                sender
+            );
+            Err(anyhow::anyhow!(
+                "the Claude Code provider is not available for messages from external channels, because its tools run inside the CLI and cannot be routed through the approval gate; choose an API-based provider for this surface"
+            ))
+        }
+        AgentTurnOrigin::Unknown => {
+            log::warn!(
+                "[claude-code][driver] refusing turn with an unlabelled origin: entry points must scope an AgentTurnOrigin"
+            );
+            Err(anyhow::anyhow!(
+                "the Claude Code provider requires a labelled turn origin; this call site must scope an AgentTurnOrigin before invoking the agent"
+            ))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Run one turn against the `claude` CLI. Awaits process exit. Forwards
 /// `ProviderDelta`s through `ctx.stream` as they arrive and returns the
 /// aggregated `ChatResponse` when done.
 pub async fn run_turn(ctx: TurnContext<'_>) -> anyhow::Result<ChatResponse> {
+    refuse_untrusted_origin()?;
+
     let stored = ctx.session_store.get(&ctx.thread_id);
     let is_new = !stored.as_deref().map(is_uuid_v4).unwrap_or(false);
     let cc_session_id = if is_new {

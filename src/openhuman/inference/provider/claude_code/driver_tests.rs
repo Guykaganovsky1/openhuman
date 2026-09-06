@@ -411,3 +411,50 @@ fn a_spawn_failure_on_an_absent_cli_still_carries_the_setup_marker() {
     let err = super::spawn_error(&dir.path().join("claude"), &"os error 2");
     assert!(err.to_string().starts_with("[claude-code] `claude` CLI"));
 }
+
+#[tokio::test]
+async fn external_channel_turns_are_refused() {
+    use crate::openhuman::agent::turn_origin::{self, AgentTurnOrigin};
+
+    let err = turn_origin::with_origin(
+        AgentTurnOrigin::ExternalChannel {
+            channel: "discord".into(),
+            sender: Some("attacker#1234".into()),
+            reply_target: "chan-1".into(),
+            message_id: "msg-1".into(),
+        },
+        async { super::refuse_untrusted_origin() },
+    )
+    .await
+    .expect_err("an external-channel turn must not reach the CLI");
+    assert!(
+        err.to_string().contains("external channels"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn unlabelled_origin_is_refused() {
+    let err = super::refuse_untrusted_origin()
+        .expect_err("an unlabelled origin must fail closed, not be assumed local");
+    assert!(
+        err.to_string().contains("labelled turn origin"),
+        "unexpected error: {err}"
+    );
+}
+
+#[tokio::test]
+async fn web_chat_turns_are_allowed() {
+    use crate::openhuman::agent::turn_origin::{self, AgentTurnOrigin};
+
+    turn_origin::with_origin(
+        AgentTurnOrigin::WebChat {
+            thread_id: "t1".into(),
+            client_id: "c1".into(),
+            request_id: None,
+        },
+        async { super::refuse_untrusted_origin() },
+    )
+    .await
+    .expect("the desktop user's own chat is exactly what this provider is for");
+}
