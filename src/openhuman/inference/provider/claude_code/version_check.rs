@@ -195,6 +195,13 @@ fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
             // redirected leaves that child running in it — stdout hit EOF, so
             // nothing above noticed. Signal the group so the probe does not
             // outlive itself.
+            //
+            // Signalling a pid the kernel could have recycled is the obvious
+            // worry, and it is why the id is read before the reap rather than
+            // off the reaped `Child`. It does not survive the second step: a
+            // process-group id is not reused while any process remains in the
+            // group, so whenever there is something here to kill, the group is
+            // still ours. With nothing left the kill is an ESRCH we ignore.
             #[cfg(unix)]
             kill_probe_group(pgid);
         }
