@@ -512,6 +512,34 @@ fn read_skill_resource_rejects_symlinked_leaf() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn read_skill_resource_rejects_symlinked_intermediate_dir() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempfile::tempdir().unwrap();
+    let ws = dir.path();
+    let skill_dir = make_legacy_skill(ws, "demo");
+
+    // A real file, reachable only through a symlinked DIRECTORY component.
+    // A no-follow open of the joined path would not catch this — the leaf is
+    // an ordinary file; it is the parent that redirects out of the root.
+    let external = tempfile::tempdir().unwrap();
+    write(&external.path().join("leaked.txt"), "leaked content");
+    symlink(external.path(), skill_dir.join("scripts")).unwrap();
+
+    let err = read_workflow_resource(ws, "demo", Path::new("scripts/leaked.txt"))
+        .expect_err("symlinked intermediate directory must be rejected");
+    let lowered = err.to_lowercase();
+    assert!(
+        lowered.contains("symlink")
+            || lowered.contains("escape")
+            || lowered.contains("too many levels")
+            || lowered.contains("failed to open"),
+        "unexpected error: {err}"
+    );
+}
+
 #[test]
 fn read_skill_resource_rejects_oversized_file() {
     let dir = tempfile::tempdir().unwrap();

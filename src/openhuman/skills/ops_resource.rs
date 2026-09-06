@@ -164,13 +164,15 @@ pub fn read_workflow_resource_with_profile(
     }
 
     // Everything above validates a PATH, and a path can be swapped between
-    // the check and the read: these skill roots are user-managed, so a
-    // process with write access can replace a component with a symlink after
-    // the `starts_with` test passes. Open the leaf with no-follow semantics
-    // and re-validate the OPEN DESCRIPTOR, then read through that same
-    // descriptor — the bytes we return are then provably the object we
+    // the check and the read: these skill roots are user-managed, so a process
+    // with write access can replace a component with a symlink after the
+    // `starts_with` test passes. So the path checks above are kept for their
+    // error messages and early rejection, and the actual open does not trust
+    // them: `open_under_root` walks the components one at a time from a held
+    // root descriptor, no-follow at every step, and everything below reads the
+    // resulting DESCRIPTOR. The bytes returned are then provably the object we
     // checked, not whatever the path resolves to a moment later.
-    let file = open_no_follow(&canonical_requested)?;
+    let file = open_under_root(&canonical_root, relative_path)?;
 
     // Type and size come from the descriptor (fstat), not from the path.
     let meta = file
@@ -259,33 +261,112 @@ fn resolve_workflow_for_resource(
     }
 }
 
-/// Open `path` without following a final symlink component.
+/// Open the resource at `relative` beneath `root` without letting ANY path
+/// component be swapped for a symlink after it was checked.
 ///
-/// `File::open` follows symlinks, which is exactly the window the path checks
-/// above cannot close: between `canonicalize` and the open, the leaf can be
-/// replaced. `O_NOFOLLOW` (unix) and `FILE_FLAG_OPEN_REPARSE_POINT` (windows)
-/// make that replacement an error rather than a silent redirect.
+/// A no-follow open of the joined path is not enough: it constrains only the
+/// final component, so an attacker able to write in the skill tree can replace
+/// an *intermediate directory* between the `canonicalize` above and the open,
+/// and the kernel resolves the new one. The fix is to never hand the kernel a
+/// multi-component path at all — hold a descriptor for the root, then walk one
+/// component at a time with `openat(..., O_NOFOLLOW)`, so each step is relative
+/// to a directory we already have open. A directory swapped after we opened it
+/// no longer participates in the resolution.
 ///
-/// Windows returns a handle to the reparse point itself rather than failing,
-/// so the caller's `metadata().is_file()` check is what rejects it there —
-/// which is why that check reads the descriptor and not the path.
-fn open_no_follow(path: &Path) -> Result<std::fs::File, String> {
-    let mut opts = std::fs::OpenOptions::new();
-    opts.read(true);
+/// `relative` is already validated to be non-empty and to contain only
+/// `Component::Normal` parts, which is what makes the walk below total.
+#[cfg(unix)]
+fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String> {
+    use std::ffi::{CString, OsStr};
+    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+    use std::os::unix::ffi::OsStrExt;
+    use std::path::Component;
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        opts.custom_flags(libc::O_NOFOLLOW);
+    fn openat_no_follow(
+        dir: libc::c_int,
+        name: &OsStr,
+        flags: libc::c_int,
+        display: &Path,
+    ) -> Result<OwnedFd, String> {
+        let c_name = CString::new(name.as_bytes())
+            .map_err(|_| "resource path component contains an interior NUL".to_string())?;
+        // SAFETY: `dir` is a live descriptor owned by the caller for the whole
+        // call, and `c_name` is a NUL-terminated string that outlives it.
+        let fd = unsafe { libc::openat(dir, c_name.as_ptr(), flags) };
+        if fd < 0 {
+            return Err(format!(
+                "failed to open resource {}: {}",
+                display.display(),
+                std::io::Error::last_os_error()
+            ));
+        }
+        // SAFETY: `openat` returned a fresh, owned descriptor.
+        Ok(unsafe { OwnedFd::from_raw_fd(fd) })
     }
 
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::OpenOptionsExt;
-        // FILE_FLAG_OPEN_REPARSE_POINT
-        opts.custom_flags(0x0020_0000);
+    let components: Vec<&OsStr> = relative
+        .components()
+        .map(|c| match c {
+            Component::Normal(name) => Ok(name),
+            _ => Err("relative_path must be a plain relative path".to_string()),
+        })
+        .collect::<Result<_, _>>()?;
+    let Some((last, parents)) = components.split_last() else {
+        return Err("relative_path must name a file".to_string());
+    };
+
+    let root_c = CString::new(root.as_os_str().as_bytes())
+        .map_err(|_| "skill root contains an interior NUL".to_string())?;
+    // SAFETY: `root_c` is NUL-terminated and lives across the call.
+    let root_fd = unsafe {
+        libc::open(
+            root_c.as_ptr(),
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_CLOEXEC,
+        )
+    };
+    if root_fd < 0 {
+        return Err(format!(
+            "failed to open skill root {}: {}",
+            root.display(),
+            std::io::Error::last_os_error()
+        ));
+    }
+    // SAFETY: `open` returned a fresh, owned descriptor.
+    let mut dir = unsafe { OwnedFd::from_raw_fd(root_fd) };
+
+    for name in parents {
+        dir = openat_no_follow(
+            dir.as_raw_fd(),
+            name,
+            libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+            relative,
+        )?;
     }
 
-    opts.open(path)
+    let file = openat_no_follow(
+        dir.as_raw_fd(),
+        last,
+        libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+        relative,
+    )?;
+    Ok(std::fs::File::from(file))
+}
+
+/// Windows fallback: open the joined path with the reparse-point flag.
+///
+/// There is no `openat` here, so this constrains the final component only —
+/// the intermediate-directory swap the unix walk above closes is still open on
+/// Windows. The caller's descriptor-based type and size checks still apply, and
+/// a reparse point opened this way fails the `is_file` test rather than being
+/// followed.
+#[cfg(windows)]
+fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String> {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    let path = root.join(relative);
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(0x0020_0000) // FILE_FLAG_OPEN_REPARSE_POINT
+        .open(&path)
         .map_err(|e| format!("failed to open resource {}: {e}", path.display()))
 }
