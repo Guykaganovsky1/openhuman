@@ -172,7 +172,16 @@ pub fn read_workflow_resource_with_profile(
     // root descriptor, no-follow at every step, and everything below reads the
     // resulting DESCRIPTOR. The bytes returned are then provably the object we
     // checked, not whatever the path resolves to a moment later.
-    let file = open_under_root(&canonical_root, relative_path)?;
+    //
+    // The walk starts from `skill_root`, NOT from `canonical_root`: the latter
+    // is what `canonicalize` said a moment ago, and canonicalize follows
+    // symlinks. A skill root replaced by a link to somewhere else between
+    // discovery and here would make `canonical_root` the attacker's directory,
+    // and a no-follow walk beneath it would faithfully read the wrong tree.
+    // Opening `skill_root` with `O_NOFOLLOW` refuses that replacement instead
+    // of resolving it. (Replacing an ANCESTOR of the root is still not chased
+    // — see this function's note.)
+    let file = open_under_root(&skill_root, relative_path)?;
 
     // Type and size come from the descriptor (fstat), not from the path.
     let meta = file
@@ -285,7 +294,7 @@ fn resolve_workflow_for_resource(
 /// attacker confined to the tree itself, which is exactly what these opens
 /// close.
 #[cfg(unix)]
-fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String> {
+pub(crate) fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String> {
     use std::ffi::{CString, OsStr};
     use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
     use std::os::unix::ffi::OsStrExt;
@@ -375,7 +384,7 @@ fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String
 /// Both sides of the comparison come from the same API, so both are in the
 /// same normalised `\\?\` form and can be compared as prefixes.
 #[cfg(windows)]
-fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String> {
+pub(crate) fn open_under_root(root: &Path, relative: &Path) -> Result<std::fs::File, String> {
     use std::os::windows::fs::OpenOptionsExt;
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::Storage::FileSystem::{

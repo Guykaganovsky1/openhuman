@@ -609,14 +609,20 @@ export default function Skills() {
   // A channel setup sheet belongs to the Messaging tab. It is rendered outside
   // the tab body (it is a modal), so switching tabs used to leave it floating
   // over the MCP or Apps grid with no relationship to what was underneath.
-  // Keyed on `activeTab` rather than folded into `handleTabChange` so browser
-  // back/forward — which changes the tab through the URL, never through that
-  // callback — closes it too. Rendering it conditionally on the tab instead
+  // Compared against `activeTab` rather than folded into `handleTabChange` so
+  // browser back/forward — which changes the tab through the URL, never through
+  // that callback — closes it too. Rendering it conditionally on the tab instead
   // would only hide it: the sheet would come back on returning to Messaging,
   // which is not what dismissing it means.
-  useEffect(() => {
+  //
+  // Adjusted during render, not in an effect. React re-runs this component
+  // before committing, so the sheet never paints over the new tab; an effect
+  // would show one frame of it and trips `react-hooks/set-state-in-effect`.
+  const [tabWhenModalOpened, setTabWhenModalOpened] = useState(activeTab);
+  if (tabWhenModalOpened !== activeTab) {
+    setTabWhenModalOpened(activeTab);
     setChannelModalDef(null);
-  }, [activeTab]);
+  }
 
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const addToast = useCallback((toast: Omit<ToastNotification, 'id'>) => {

@@ -566,6 +566,33 @@ fn read_skill_resource_rejects_symlinked_skill_root() {
     );
 }
 
+/// The test above cannot reach the open: discovery rejects the symlinked root
+/// and the read fails as "not found", which would pass even if the walk were
+/// wrong. So drive the walk directly with a root that IS a symlink — the shape
+/// a root swapped between discovery and the read presents — and assert the
+/// no-follow open of the root refuses it rather than resolving through.
+#[cfg(unix)]
+#[test]
+fn open_under_root_refuses_a_symlinked_root() {
+    use std::os::unix::fs::symlink;
+
+    let external = tempfile::tempdir().unwrap();
+    write(&external.path().join("notes.txt"), "leaked content");
+
+    let home = tempfile::tempdir().unwrap();
+    let root_link = home.path().join("skill-root");
+    symlink(external.path(), &root_link).unwrap();
+
+    let err =
+        crate::openhuman::skills::ops_resource::open_under_root(&root_link, Path::new("notes.txt"))
+            .err()
+            .expect("a symlinked root must not open");
+    assert!(
+        err.contains("failed to open skill root"),
+        "unexpected error: {err}"
+    );
+}
+
 #[test]
 fn read_skill_resource_rejects_oversized_file() {
     let dir = tempfile::tempdir().unwrap();
