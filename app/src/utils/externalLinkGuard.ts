@@ -84,6 +84,11 @@ export function installExternalLinkGuard(doc: Document = document): () => void {
     const anchor = target?.closest?.('a[href]') as HTMLAnchorElement | null;
     if (!anchor) return;
 
+    // A `download` anchor is not a navigation — the browser writes the file and
+    // the app stays put. Preventing its default cancels the download with no
+    // error anywhere, so it never reaches classification.
+    if (anchor.hasAttribute('download')) return;
+
     const href = anchor.getAttribute('href') ?? '';
     const kind = classifyLinkNavigation(
       href,

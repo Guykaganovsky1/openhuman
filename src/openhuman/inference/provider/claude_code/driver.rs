@@ -104,6 +104,16 @@ fn probe_cli(bin: &Path) -> CliProbe {
         Ok(meta) => meta,
         Err(err) => return metadata_failure(bin, &err),
     };
+    // A directory carries execute bits too, and they mean "may be traversed",
+    // not "may be run". Without this the permission check below passes, the
+    // probe answers `Healthy`, and the `spawn` that then fails with EACCES is
+    // classified as a retryable generic error rather than a setup problem.
+    if !meta.is_file() {
+        return CliProbe::Unusable(format!(
+            "[claude-code] `claude` CLI at {} is not a regular file",
+            bin.display()
+        ));
+    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -114,8 +124,6 @@ fn probe_cli(bin: &Path) -> CliProbe {
             ));
         }
     }
-    #[cfg(not(unix))]
-    let _ = meta;
     CliProbe::Healthy
 }
 
@@ -386,15 +394,13 @@ fn refuse_untrusted_origin() -> anyhow::Result<()> {
     use crate::openhuman::agent::turn_origin::{self, AgentTurnOrigin};
 
     match turn_origin::current().unwrap_or(AgentTurnOrigin::Unknown) {
-        AgentTurnOrigin::ExternalChannel {
-            ref channel,
-            ref sender,
-            ..
-        } => {
+        AgentTurnOrigin::ExternalChannel { ref channel, .. } => {
+            // Channel only. `sender` is a user identifier from the remote
+            // service, and a refusal is not a reason to write one into the
+            // application log.
             log::warn!(
-                "[claude-code][driver] refusing turn from external channel={} sender={:?}: this provider's native tools cannot be routed through the approval gate",
-                channel,
-                sender
+                "[claude-code][driver] refusing turn from external channel={}: this provider's native tools cannot be routed through the approval gate",
+                channel
             );
             Err(anyhow::anyhow!(
                 "the Claude Code provider is not available for messages from external channels, because its tools run inside the CLI and cannot be routed through the approval gate; choose an API-based provider for this surface"

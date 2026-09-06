@@ -133,3 +133,20 @@ describe('installExternalLinkGuard', () => {
     expect(openUrl).not.toHaveBeenCalled();
   });
 });
+
+describe('installExternalLinkGuard download anchors', () => {
+  it('leaves a same-origin download anchor to the browser', () => {
+    const teardown = installExternalLinkGuard(document);
+    const anchor = document.createElement('a');
+    anchor.setAttribute('href', '/export.csv');
+    anchor.setAttribute('download', '');
+    document.body.appendChild(anchor);
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    anchor.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    anchor.remove();
+    teardown();
+  });
+});

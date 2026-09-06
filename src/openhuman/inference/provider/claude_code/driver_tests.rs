@@ -458,3 +458,17 @@ async fn web_chat_turns_are_allowed() {
     .await
     .expect("the desktop user's own chat is exactly what this provider is for");
 }
+
+/// A directory has execute bits, and they mean "traversable", not "runnable".
+/// Answering `Healthy` for one sends the EACCES from `spawn` down the retryable
+/// generic path, which tells the user to report a broken install as a bug.
+#[test]
+fn a_directory_is_not_a_usable_cli() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let detail =
+        unusable(super::probe_cli(dir.path())).expect("a directory is a setup failure, not a turn failure");
+    assert!(
+        detail.contains("is not a regular file"),
+        "unexpected detail: {detail}"
+    );
+}

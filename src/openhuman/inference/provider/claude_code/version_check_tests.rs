@@ -355,3 +355,70 @@ fn is_running(pid: i32) -> bool {
     let state = state.trim();
     !state.is_empty() && !state.starts_with('Z')
 }
+
+/// A shell that exits 0 still leaves its process group behind if the rc file
+/// backgrounded something with its output redirected: stdout hits EOF, the
+/// answer arrives, `wait_until` reaps the shell, and the sleeper keeps running
+/// with nothing holding a handle to it. The success path has to signal the
+/// group too, not only the timeout path.
+#[cfg(unix)]
+#[test]
+fn a_successful_login_shell_takes_its_grandchildren_with_it() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let child_pid_file = dir.path().join("child.pid");
+    // The probe only returns a path that `is_file()`, so answer with one.
+    let answer = dir.path().join("claude");
+    std::fs::write(&answer, "#!/bin/sh\n").expect("write answer");
+
+    let shell = dir.path().join("backgrounding-shell");
+    std::fs::write(
+        &shell,
+        format!(
+            // The redirect is the point: without it the sleeper holds stdout
+            // open and the probe times out instead of succeeding.
+            "#!/bin/sh\nsleep 30 >/dev/null 2>&1 &\necho $! > {}\necho {}\n",
+            child_pid_file.display(),
+            answer.display()
+        ),
+    )
+    .expect("write shell");
+    std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o755)).expect("chmod shell");
+
+    let shell_path = shell.to_str().expect("utf8 path").to_string();
+    let probe =
+        std::thread::spawn(move || super::login_shell_lookup_with(&shell_path, PROBE_BUDGET));
+
+    let deadline = std::time::Instant::now() + PID_DEADLINE;
+    let grandchild = loop {
+        if let Ok(raw) = std::fs::read_to_string(&child_pid_file) {
+            if let Ok(pid) = raw.trim().parse::<i32>() {
+                break pid;
+            }
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the rc file never recorded its background pid"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    };
+
+    assert_eq!(
+        probe.join().expect("probe thread"),
+        Some(answer),
+        "the shell exited 0 and printed a real path"
+    );
+
+    let gone_by = std::time::Instant::now() + Duration::from_secs(1);
+    loop {
+        if !is_running(grandchild) {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < gone_by,
+            "grandchild pid {grandchild} outlived a successful probe as an orphan"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}

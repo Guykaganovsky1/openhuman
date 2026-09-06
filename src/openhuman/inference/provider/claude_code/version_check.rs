@@ -182,8 +182,22 @@ fn login_shell_lookup_with(shell: &str, budget: Duration) -> Option<PathBuf> {
         }
     };
 
+    // Captured before the reap: `wait_until` consumes the child, and reading
+    // the pid off a reaped `Child` is reading a pid the kernel is free to hand
+    // to someone else.
+    #[cfg(unix)]
+    let pgid = child.id() as libc::pid_t;
+
     match wait_until(&mut child, deadline) {
-        Some(status) if status.success() => {}
+        Some(status) if status.success() => {
+            // The shell exited, but `process_group(0)` gave it a group of its
+            // own, and a profile that backgrounds something with stdout
+            // redirected leaves that child running in it — stdout hit EOF, so
+            // nothing above noticed. Signal the group so the probe does not
+            // outlive itself.
+            #[cfg(unix)]
+            kill_probe_group(pgid);
+        }
         Some(_) => return None,
         None => {
             log::warn!(
@@ -245,13 +259,21 @@ fn wait_until(
 /// is exactly what the 2s bound is supposed to prevent.
 #[cfg(unix)]
 fn kill_probe_tree(child: &mut std::process::Child) {
-    let pid = child.id() as libc::pid_t;
-    log::debug!("[claude-code][version] killing login shell process group pgid={pid}");
-    // SAFETY: `kill(2)` with a negative pid signals the process group led by
-    // `pid`. No `wait` has run yet, so the child is at worst a zombie and its
-    // pid cannot have been recycled by another process.
+    kill_probe_group(child.id() as libc::pid_t);
+}
+
+/// SIGKILL the process group led by `pgid`.
+///
+/// `kill(2)` with a negative pid signals a whole group, which is the point:
+/// the probe shell is its own group leader (`process_group(0)`), so this
+/// reaches anything it started and left behind.
+#[cfg(unix)]
+fn kill_probe_group(pgid: libc::pid_t) {
+    log::debug!("[claude-code][version] killing login shell process group pgid={pgid}");
+    // SAFETY: signalling a process group is safe; the worst case is ESRCH for
+    // a group that is already gone, which is ignored.
     unsafe {
-        libc::kill(-pid, libc::SIGKILL);
+        libc::kill(-pgid, libc::SIGKILL);
     }
 }
 
